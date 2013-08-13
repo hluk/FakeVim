@@ -38,6 +38,13 @@
 #include <QStatusBar>
 #include <QTextEdit>
 
+#define EDITOR(editor, call) \
+    if (QPlainTextEdit *ed = qobject_cast<QPlainTextEdit *>(editor)) { \
+        (ed->call); \
+    } else if (QTextEdit *ed = qobject_cast<QTextEdit *>(editor)) { \
+        (ed->call); \
+    }
+
 using namespace FakeVim::Internal;
 
 typedef QLatin1String _;
@@ -91,10 +98,7 @@ public:
 public slots:
     void changeSelection(const QList<QTextEdit::ExtraSelection> &s)
     {
-        if (QPlainTextEdit *ed = qobject_cast<QPlainTextEdit *>(m_widget))
-            ed->setExtraSelections(s);
-        else if (QTextEdit *ed = qobject_cast<QTextEdit *>(m_widget))
-            ed->setExtraSelections(s);
+        EDITOR(m_widget, setExtraSelections(s));
     }
 
     void changeStatusData(const QString &info)
@@ -232,6 +236,12 @@ void readFile(FakeVimHandler &handler, const QString &editFileName)
     handler.handleCommand(QString(_("r %1")).arg(editFileName));
 }
 
+void clearUndoRedo(QWidget *editor)
+{
+    EDITOR(editor, setUndoRedoEnabled(false));
+    EDITOR(editor, setUndoRedoEnabled(true));
+}
+
 void connectSignals(FakeVimHandler &handler, Proxy &proxy)
 {
     QObject::connect(&handler, SIGNAL(commandBufferChanged(QString,int,int,int,QObject*)),
@@ -279,6 +289,9 @@ int main(int argc, char *argv[])
 
     // Read file content to editor.
     readFile(handler, editFileName);
+
+    // Clear undo and redo queues.
+    clearUndoRedo(editor);
 
     return app.exec();
 }
