@@ -108,12 +108,6 @@ Example Vimrc
     nnoremap ; :
     inoremap jj <Esc>
 
-    " typos
-    command! Q :q
-    command! W :w
-    command! Wq :wq
-    command! WQ :wq
-
     " clear highlighted search term on space
     noremap <silent> <Space> :nohls<CR>
 
