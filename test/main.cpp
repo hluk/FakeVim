@@ -116,20 +116,22 @@ public slots:
         // Clear previous highlights.
         ed->selectAll();
         QTextCursor cur = ed->textCursor();
-        QTextCharFormat fmt = cur.charFormat();
-        fmt.setBackground(Qt::transparent);
-        cur.setCharFormat(fmt);
+
+        QTextEdit::ExtraSelection selection;
+        selection.format.setBackground(Qt::yellow);
 
         // Highlight matches.
         QTextDocument *doc = ed->document();
         QRegExp re(pattern);
         cur = doc->find(re);
 
+        QList<QTextEdit::ExtraSelection> selections;
+
         int a = cur.position();
         while ( !cur.isNull() ) {
             if ( cur.hasSelection() ) {
-                fmt.setBackground(Qt::yellow);
-                cur.setCharFormat(fmt);
+                selection.cursor = cur;
+                selections.append(selection);
             } else {
                 cur.movePosition(QTextCursor::NextCharacter);
             }
@@ -143,6 +145,8 @@ public slots:
             }
             a = b;
         }
+
+        ed->setExtraSelections(selections);
     }
 
     void changeStatusMessage(const QString &contents, int cursorPos)
