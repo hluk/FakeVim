@@ -725,6 +725,7 @@ static const QMap<QString, int> &vimKeyNames()
     k.insert(_("RIGHT"), Key_Right);
 
     k.insert(_("LT"), Key_Less);
+    k.insert(_("GT"), Key_Greater);
 
     k.insert(_("F1"), Key_F1);
     k.insert(_("F2"), Key_F2);
@@ -1007,6 +1008,8 @@ public:
         if (!namedKey) {
             if (m_xkey == '<')
                 key = _("<LT>");
+            else if (m_xkey == '>')
+                key = _("<GT>");
             else
                 key = QChar(m_xkey);
         }
@@ -5119,7 +5122,7 @@ bool FakeVimHandler::Private::handleExSubstituteCommand(const ExCommand &cmd)
             int pos1 = findUnescaped(separator, line, 1);
             if (pos1 == -1)
                 return false;
-            int pos2 = findUnescaped(separator, line, pos1 + 1);;
+            int pos2 = findUnescaped(separator, line, pos1 + 1);
             if (pos2 == -1)
                 pos2 = line.size();
 
