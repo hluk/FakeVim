@@ -66,14 +66,22 @@ public:
     {
         TextEdit::paintEvent(e);
 
+        if ( !m_cursorRect.isNull() && e->rect().intersects(m_cursorRect) ) {
+            QRect rect = m_cursorRect;
+            m_cursorRect = QRect();
+            TextEdit::update(rect);
+        }
+
         // Draw text cursor.
         QRect rect = TextEdit::cursorRect();
-        if ( e->rect().contains(rect) ) {
+        if ( e->rect().intersects(rect) ) {
             QPainter painter(TextEdit::viewport());
 
             if ( TextEdit::overwriteMode() ) {
                 QFontMetrics fm(TextEdit::font());
-                rect.setWidth(fm.width(QLatin1Char('m')));
+                const int position = TextEdit::textCursor().position();
+                const QChar c = TextEdit::document()->characterAt(position);
+                rect.setWidth(fm.width(c));
                 painter.setPen(Qt::NoPen);
                 painter.setBrush(TextEdit::palette().color(QPalette::Base));
                 painter.setCompositionMode(QPainter::CompositionMode_Difference);
@@ -81,9 +89,14 @@ public:
                 rect.setWidth(TextEdit::cursorWidth());
                 painter.setPen(TextEdit::palette().color(QPalette::Text));
             }
+
             painter.drawRect(rect);
+            m_cursorRect = rect;
         }
     }
+
+private:
+    QRect m_cursorRect;
 };
 
 class Proxy : public QObject
@@ -272,7 +285,7 @@ int main(int argc, char *argv[])
     // If first argument is present use QPlainTextEdit instead on QTextEdit;
     bool usePlainTextEdit = args.size() > 1;
     // Second argument is path to file to edit.
-    const QString editFileName = args.value(2, QString(_("/usr/share/vim/vim73/tutor/tutor")));
+    const QString editFileName = args.value(2, QString(_("/usr/share/vim/vim74/tutor/tutor")));
 
     // Create editor widget.
     QWidget *editor = createEditorWidget(usePlainTextEdit);
