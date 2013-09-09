@@ -36,6 +36,7 @@
 #include <QPainter>
 #include <QPlainTextEdit>
 #include <QStatusBar>
+#include <QTextBlock>
 #include <QTextEdit>
 
 #define EDITOR(editor, call) \
@@ -109,11 +110,6 @@ public:
     {}
 
 public slots:
-    void changeSelection(const QList<QTextEdit::ExtraSelection> &s)
-    {
-        EDITOR(m_widget, setExtraSelections(s));
-    }
-
     void changeStatusData(const QString &info)
     {
         m_statusData = info;
@@ -126,25 +122,24 @@ public slots:
         if (!ed)
             return;
 
-        // Clear previous highlights.
-        ed->selectAll();
         QTextCursor cur = ed->textCursor();
 
         QTextEdit::ExtraSelection selection;
         selection.format.setBackground(Qt::yellow);
+        selection.format.setForeground(Qt::black);
 
         // Highlight matches.
         QTextDocument *doc = ed->document();
         QRegExp re(pattern);
         cur = doc->find(re);
 
-        QList<QTextEdit::ExtraSelection> selections;
+        m_searchSelection.clear();
 
         int a = cur.position();
         while ( !cur.isNull() ) {
             if ( cur.hasSelection() ) {
                 selection.cursor = cur;
-                selections.append(selection);
+                m_searchSelection.append(selection);
             } else {
                 cur.movePosition(QTextCursor::NextCharacter);
             }
@@ -159,7 +154,7 @@ public slots:
             a = b;
         }
 
-        ed->setExtraSelections(selections);
+        updateExtraSelections();
     }
 
     void changeStatusMessage(const QString &contents, int cursorPos)
@@ -193,11 +188,81 @@ public slots:
         *handled = true;
     }
 
+    void requestSetBlockSelection(bool on = false)
+    {
+        QTextEdit *ed = qobject_cast<QTextEdit *>(m_widget);
+        if (!ed)
+            return;
+
+        QPalette pal = ed->parentWidget() != NULL ? ed->parentWidget()->palette()
+                                                  : QApplication::palette();
+
+        m_blockSelection.clear();
+        m_clearSelection.clear();
+
+        if (on) {
+            QTextCursor cur = ed->textCursor();
+
+            QTextEdit::ExtraSelection selection;
+            selection.format.setBackground( pal.color(QPalette::Base) );
+            selection.format.setForeground( pal.color(QPalette::Text) );
+            selection.cursor = cur;
+            m_clearSelection.append(selection);
+
+            selection.format.setBackground( pal.color(QPalette::Highlight) );
+            selection.format.setForeground( pal.color(QPalette::HighlightedText) );
+
+            int from = cur.positionInBlock();
+            int to = cur.anchor() - cur.document()->findBlock(cur.anchor()).position();
+            const int min = qMin(cur.position(), cur.anchor());
+            const int max = qMax(cur.position(), cur.anchor());
+            for ( QTextBlock block = cur.document()->findBlock(min);
+                  block.isValid() && block.position() < max; block = block.next() ) {
+                cur.setPosition( block.position() + qMin(from, block.length()) );
+                cur.setPosition( block.position() + qMin(to, block.length()), QTextCursor::KeepAnchor );
+                selection.cursor = cur;
+                m_blockSelection.append(selection);
+            }
+
+            connect( ed, SIGNAL(selectionChanged()),
+                     SLOT(requestSetBlockSelection()), Qt::UniqueConnection );
+
+            QPalette pal2 = ed->palette();
+            pal2.setColor(QPalette::Highlight, Qt::transparent);
+            pal2.setColor(QPalette::HighlightedText, Qt::transparent);
+            ed->setPalette(pal2);
+
+        } else {
+            ed->setPalette(pal);
+
+            disconnect( ed, SIGNAL(selectionChanged()),
+                        this, SLOT(requestSetBlockSelection()) );
+        }
+
+        updateExtraSelections();
+    }
+
+    void requestHasBlockSelection(bool *on)
+    {
+        *on = !m_blockSelection.isEmpty();
+    }
+
 private:
+    void updateExtraSelections()
+    {
+        QTextEdit *ed = qobject_cast<QTextEdit *>(m_widget);
+        if (ed)
+            ed->setExtraSelections(m_clearSelection + m_searchSelection + m_blockSelection);
+    }
+
     QWidget *m_widget;
     QMainWindow *m_mainWindow;
     QString m_statusMessage;
     QString m_statusData;
+
+    QList<QTextEdit::ExtraSelection> m_searchSelection;
+    QList<QTextEdit::ExtraSelection> m_clearSelection;
+    QList<QTextEdit::ExtraSelection> m_blockSelection;
 };
 
 QWidget *createEditorWidget(bool usePlainTextEdit)
@@ -263,9 +328,6 @@ void connectSignals(FakeVimHandler &handler, Proxy &proxy)
 {
     QObject::connect(&handler, SIGNAL(commandBufferChanged(QString,int,int,int,QObject*)),
         &proxy, SLOT(changeStatusMessage(QString,int)));
-    QObject::connect(&handler,
-        SIGNAL(selectionChanged(QList<QTextEdit::ExtraSelection>)),
-        &proxy, SLOT(changeSelection(QList<QTextEdit::ExtraSelection>)));
     QObject::connect(&handler, SIGNAL(extraInformationChanged(QString)),
         &proxy, SLOT(changeExtraInformation(QString)));
     QObject::connect(&handler, SIGNAL(statusDataChanged(QString)),
@@ -274,6 +336,10 @@ void connectSignals(FakeVimHandler &handler, Proxy &proxy)
         &proxy, SLOT(highlightMatches(QString)));
     QObject::connect(&handler, SIGNAL(handleExCommandRequested(bool*,ExCommand)),
         &proxy, SLOT(handleExCommand(bool*,ExCommand)));
+    QObject::connect(&handler, SIGNAL(requestSetBlockSelection(bool)),
+        &proxy, SLOT(requestSetBlockSelection(bool)));
+    QObject::connect(&handler, SIGNAL(requestHasBlockSelection(bool*)),
+        &proxy, SLOT(requestHasBlockSelection(bool*)));
 }
 
 int main(int argc, char *argv[])
