@@ -38,6 +38,9 @@
 #include <QStatusBar>
 #include <QTextBlock>
 #include <QTextEdit>
+#include <QTextStream>
+#include <QTemporaryFile>
+#include <QTimer>
 
 #define EDITOR(editor, call) \
     if (QPlainTextEdit *ed = qobject_cast<QPlainTextEdit *>(editor)) { \
@@ -70,7 +73,7 @@ public:
         if ( !m_cursorRect.isNull() && e->rect().intersects(m_cursorRect) ) {
             QRect rect = m_cursorRect;
             m_cursorRect = QRect();
-            TextEdit::update(rect);
+            TextEdit::viewport()->update(rect);
         }
 
         // Draw text cursor.
@@ -107,7 +110,18 @@ class Proxy : public QObject
 public:
     Proxy(QWidget *widget, QMainWindow *mw, QObject *parent = 0)
       : QObject(parent), m_widget(widget), m_mainWindow(mw)
-    {}
+    {
+        QTimer::singleShot(0, this, SLOT(parseArguments()));
+    }
+
+    void openFile(const QString &fileName)
+    {
+        emit handleInput(QString(_(":r %1<CR>")).arg(fileName));
+        m_fileName = fileName;
+    }
+
+signals:
+    void handleInput(const QString &keys);
 
 public slots:
     void changeStatusData(const QString &info)
@@ -178,8 +192,17 @@ public slots:
 
     void handleExCommand(bool *handled, const ExCommand &cmd)
     {
-        if (cmd.matches(_("q"), _("quit")) || cmd.matches(_("qa"), _("qall"))) {
-            QApplication::quit();
+        if ( wantSaveAndQuit(cmd) ) {
+            // :wq
+            if (save())
+                cancel();
+        } else if ( wantSave(cmd) ) {
+            save(); // :w
+        } else if ( wantQuit(cmd) ) {
+            if (cmd.hasBang)
+                invalidate(); // :q!
+            else
+                cancel(); // :q
         } else {
             *handled = false;
             return;
@@ -247,6 +270,18 @@ public slots:
         *on = !m_blockSelection.isEmpty();
     }
 
+private slots:
+    void parseArguments()
+    {
+        QStringList args = qApp->arguments();
+
+        const QString editFileName = args.value(1, QString(_("/usr/share/vim/vim74/tutor/tutor")));
+        openFile(editFileName);
+
+        foreach (const QString &cmd, args.mid(2))
+            emit handleInput(cmd);
+    }
+
 private:
     void updateExtraSelections()
     {
@@ -255,10 +290,95 @@ private:
             ed->setExtraSelections(m_clearSelection + m_searchSelection + m_blockSelection);
     }
 
+    bool wantSaveAndQuit(const ExCommand &cmd)
+    {
+        return cmd.cmd == "wq";
+    }
+
+    bool wantSave(const ExCommand &cmd)
+    {
+        return cmd.matches("w", "write") || cmd.matches("wa", "wall");
+    }
+
+    bool wantQuit(const ExCommand &cmd)
+    {
+        return cmd.matches("q", "quit") || cmd.matches("qa", "qall");
+    }
+
+    bool save()
+    {
+        if (!hasChanges())
+            return true;
+
+        QTemporaryFile tmpFile;
+        if (!tmpFile.open()) {
+            QMessageBox::critical(m_widget, tr("FakeVim Error"),
+                                  tr("Cannot create temporary file: %1").arg(tmpFile.errorString()));
+            return false;
+        }
+
+        QTextStream ts(&tmpFile);
+        ts << content();
+        ts.flush();
+
+        QFile::remove(m_fileName);
+        if (!QFile::copy(tmpFile.fileName(), m_fileName)) {
+            QMessageBox::critical(m_widget, tr("FakeVim Error"),
+                                  tr("Cannot write to file \"%1\"").arg(m_fileName));
+            return false;
+        }
+
+        return true;
+    }
+
+    void cancel()
+    {
+        if (hasChanges()) {
+            QMessageBox::critical(m_widget, tr("FakeVim Warning"),
+                                  tr("File \"%1\" was changed").arg(m_fileName));
+        } else {
+            invalidate();
+        }
+    }
+
+    void invalidate()
+    {
+        QApplication::quit();
+    }
+
+    bool hasChanges()
+    {
+        if (m_fileName.isEmpty() && content().isEmpty())
+            return false;
+
+        QFile f(m_fileName);
+        if (!f.open(QIODevice::ReadOnly))
+            return true;
+
+        QTextStream ts(&f);
+        return content() != ts.readAll();
+    }
+
+    QTextDocument *document() const
+    {
+        QTextDocument *doc = NULL;
+        if (QPlainTextEdit *ed = qobject_cast<QPlainTextEdit *>(m_widget))
+            doc = ed->document();
+        else if (QTextEdit *ed = qobject_cast<QTextEdit *>(m_widget))
+            doc = ed->document();
+        return doc;
+    }
+
+    QString content() const
+    {
+        return document()->toPlainText();
+    }
+
     QWidget *m_widget;
     QMainWindow *m_mainWindow;
     QString m_statusMessage;
     QString m_statusData;
+    QString m_fileName;
 
     QList<QTextEdit::ExtraSelection> m_searchSelection;
     QList<QTextEdit::ExtraSelection> m_clearSelection;
@@ -285,6 +405,9 @@ QWidget *createEditorWidget(bool usePlainTextEdit)
 
 void initHandler(FakeVimHandler &handler)
 {
+    handler.handleCommand(_("set nopasskeys"));
+    handler.handleCommand(_("set nopasscontrolkey"));
+
     // Set some Vim options.
     handler.handleCommand(_("set expandtab"));
     handler.handleCommand(_("set shiftwidth=8"));
@@ -313,11 +436,6 @@ void initMainWindow(QMainWindow &mainWindow, QWidget *centralWidget, const QStri
     mainWindow.statusBar()->setFont(font);
 }
 
-void readFile(FakeVimHandler &handler, const QString &editFileName)
-{
-    handler.handleCommand(QString(_("r %1")).arg(editFileName));
-}
-
 void clearUndoRedo(QWidget *editor)
 {
     EDITOR(editor, setUndoRedoEnabled(false));
@@ -340,6 +458,9 @@ void connectSignals(FakeVimHandler &handler, Proxy &proxy)
         &proxy, SLOT(requestSetBlockSelection(bool)));
     QObject::connect(&handler, SIGNAL(requestHasBlockSelection(bool*)),
         &proxy, SLOT(requestHasBlockSelection(bool*)));
+
+    QObject::connect(&proxy, SIGNAL(handleInput(QString)),
+        &handler, SLOT(handleInput(QString)));
 }
 
 int main(int argc, char *argv[])
@@ -348,10 +469,8 @@ int main(int argc, char *argv[])
 
     QStringList args = app.arguments();
 
-    // If first argument is present use QPlainTextEdit instead on QTextEdit;
-    bool usePlainTextEdit = args.size() > 1;
-    // Second argument is path to file to edit.
-    const QString editFileName = args.value(2, QString(_("/usr/share/vim/vim74/tutor/tutor")));
+    // If FAKEVIM_PLAIN_TEXT_EDIT environment variable is 1 use QPlainTextEdit instead on QTextEdit;
+    bool usePlainTextEdit = qgetenv("FAKEVIM_PLAIN_TEXT_EDIT") == "1";
 
     // Create editor widget.
     QWidget *editor = createEditorWidget(usePlainTextEdit);
@@ -369,9 +488,6 @@ int main(int argc, char *argv[])
 
     // Initialize FakeVimHandler.
     initHandler(handler);
-
-    // Read file content to editor.
-    readFile(handler, editFileName);
 
     // Clear undo and redo queues.
     clearUndoRedo(editor);
