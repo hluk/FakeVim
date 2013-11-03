@@ -43,6 +43,7 @@ Here is list of emulated commands with description where it can diverge from Vim
 * "to upper/lower" -- `~`, `gU`, `gu` etc.
 * `i`, `a`, `o`, `I`, `A`, `O` -- enter insert mode
 * scroll window -- `zt`, `zb`, `zz` etc.
+* wrap line movement -- `gj`, `gk`, `g0`, `g^`, `g$`
 
 ### Command Line Mode
 * `:map`, `:unmap`, `:inoremap` etc.
