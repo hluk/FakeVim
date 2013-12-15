@@ -44,7 +44,7 @@ run_vim() {
     "$VIM" \
         -c "$options" \
         -c "$(vim_exec "$@")" \
-        -c "$(vim_exec "i\\|<ESC>")" \
+        -c "normal i|" \
         -c "wq" "$file"
 }
 
@@ -60,7 +60,7 @@ run_fakevim() {
 
 find_fakevim() {
     if [ ! -x "$FAKEVIM" ]; then
-        dir=$(dirname $(readlink -f "$0"))
+        dir=$(dirname "$(readlink -f "$0")")
         FAKEVIM=$(find "$dir" -type f -executable -name test | head -1)
     fi
 }
@@ -100,7 +100,7 @@ main() {
     cp "$file" "$vimoutfile"
     run_vim "$vimoutfile" "$@"
 
-    print_test "KEYS(\"$cmd\"," "$vimoutfile" ');'
+    print_test "KEYS(\"$*\"," "$vimoutfile" ');'
 
     local fakevimoutfile=${file}.fakevim
     cp "$file" "$fakevimoutfile"
@@ -114,8 +114,8 @@ main() {
     fi
 
     reset
-    cat cmd.log
-    sed 's/^/    /' cmd.log | ~/dev/copyq/build/copyq copy -
+    cat "$cmdfile"
+    sed 's/^/    /' "$cmdfile" | xclip -i
 }
 
 main "$@"
