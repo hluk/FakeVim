@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of Qt Creator.
@@ -582,6 +582,7 @@ static void searchBackward(QTextCursor *tc, QRegExp &needleExp, int *repeat)
         ++*repeat;
     }
     tc->setPosition(block.position() + i);
+    tc->setPosition(tc->position() + needleExp.matchedLength(), KeepAnchor);
 }
 
 // Commands [[, []
@@ -705,6 +706,33 @@ static void setClipboardData(const QString &content, RangeMode mode,
     clipboard->setMimeData(data, clipboardMode);
 }
 
+static QByteArray toLocalEncoding(const QString &text)
+{
+    return HostOsInfo::isWindowsHost() ? QString(text).replace(_("\n"), _("\r\n")).toLocal8Bit()
+                                       : text.toLocal8Bit();
+}
+
+static QString fromLocalEncoding(const QByteArray &data)
+{
+    return HostOsInfo::isWindowsHost() ? QString::fromLocal8Bit(data).replace(_("\n"), _("\r\n"))
+                                       : QString::fromLocal8Bit(data);
+}
+
+static QString getProcessOutput(const QString &command, const QString &input)
+{
+    QProcess proc;
+    proc.start(command);
+    proc.waitForStarted();
+    proc.write(toLocalEncoding(input));
+    proc.closeWriteChannel();
+
+    // FIXME: Process should be interruptable by user.
+    //        Solution is to create a QObject for each process and emit finished state.
+    proc.waitForFinished();
+
+    return fromLocalEncoding(proc.readAllStandardOutput());
+}
+
 static const QMap<QString, int> &vimKeyNames()
 {
     static QMap<QString, int> k;
@@ -814,6 +842,11 @@ QString Range::toString() const
 {
     return QString::fromLatin1("%1-%2 (mode: %3)").arg(beginPos).arg(endPos)
         .arg(rangemode);
+}
+
+bool Range::isValid() const
+{
+    return beginPos >= 0 && endPos >= 0;
 }
 
 QDebug operator<<(QDebug ts, const Range &range)
@@ -1463,11 +1496,12 @@ private:
 // state of current mapping
 struct MappingState {
     MappingState()
-        : noremap(false), silent(false) {}
-    MappingState(bool noremap, bool silent)
-        : noremap(noremap), silent(silent) {}
+        : noremap(false), silent(false), editBlock(false) {}
+    MappingState(bool noremap, bool silent, bool editBlock)
+        : noremap(noremap), silent(silent), editBlock(editBlock) {}
     bool noremap;
     bool silent;
+    bool editBlock;
 };
 
 class FakeVimHandler::Private : public QObject
@@ -1799,7 +1833,6 @@ public:
     int m_oldExternalAnchor;
     int m_oldInternalPosition; // copy from last event to check for external changes
     int m_oldInternalAnchor;
-    int m_oldPosition; // FIXME: Merge with above.
     int m_register;
     bool m_visualBlockInsert;
 
@@ -2109,7 +2142,6 @@ void FakeVimHandler::Private::init()
     m_oldInternalPosition = -1;
     m_oldExternalAnchor = -1;
     m_oldExternalPosition = -1;
-    m_oldPosition = -1;
     m_insertState = InsertState();
     m_breakEditBlock = false;
     m_searchStartPosition = 0;
@@ -2163,10 +2195,10 @@ void FakeVimHandler::Private::enterFakeVim()
     importSelection();
 
     // Position changed externally, e.g. by code completion.
-    if (position() != m_oldPosition) {
+    if (position() != m_oldInternalPosition) {
         // record external jump to different line
-        if (m_oldPosition != -1 && lineForPosition(m_oldPosition) != lineForPosition(position()))
-            recordJump(m_oldPosition);
+        if (m_oldInternalPosition != -1 && lineForPosition(m_oldInternalPosition) != lineForPosition(position()))
+            recordJump(m_oldInternalPosition);
         setTargetColumn();
         if (atEndOfLine() && !isVisualMode() && !isInsertMode())
             moveLeft();
@@ -2192,7 +2224,6 @@ void FakeVimHandler::Private::leaveFakeVim(bool needUpdate)
         if (m_fakeEnd)
             moveLeft();
 
-        m_oldPosition = position();
         if (hasConfig(ConfigShowMarks))
             updateSelection();
 
@@ -2440,15 +2471,15 @@ void FakeVimHandler::Private::commitInsertState()
 
 void FakeVimHandler::Private::invalidateInsertState()
 {
-    m_oldPosition = position();
+    m_oldInternalPosition = position();
     m_insertState.pos1 = -1;
-    m_insertState.pos2 = m_oldPosition;
+    m_insertState.pos2 = m_oldInternalPosition;
     m_insertState.backspaces = 0;
     m_insertState.deletes = 0;
     m_insertState.spaces.clear();
     m_insertState.insertingSpaces = false;
-    m_insertState.textBeforeCursor = textAt(document()->findBlock(m_oldPosition).position(),
-                                            m_oldPosition);
+    m_insertState.textBeforeCursor = textAt(document()->findBlock(m_oldInternalPosition).position(),
+                                            m_oldInternalPosition);
     m_insertState.newLineBefore = false;
     m_insertState.newLineAfter = false;
 }
@@ -2651,9 +2682,13 @@ void FakeVimHandler::Private::prependMapping(const Inputs &inputs)
     ++g.mapDepth;
     g.pendingInput.prepend(Input());
     prependInputs(inputs);
-    g.mapStates << MappingState(inputs.noremap(), inputs.silent());
     g.commandBuffer.setHistoryAutoSave(false);
-    beginLargeEditBlock();
+
+    // start new edit block (undo/redo) only if necessary
+    bool editBlock = m_editBlockLevel == 0 && !(isInsertMode() && isInsertStateValid());
+    if (editBlock)
+        beginLargeEditBlock();
+    g.mapStates << MappingState(inputs.noremap(), inputs.silent(), editBlock);
 }
 
 bool FakeVimHandler::Private::expandCompleteMapping()
@@ -2683,8 +2718,9 @@ void FakeVimHandler::Private::endMapping()
         --g.mapDepth;
     if (g.mapStates.isEmpty())
         return;
+    if (g.mapStates.last().editBlock)
+        endEditBlock();
     g.mapStates.pop_back();
-    endEditBlock();
     if (g.mapStates.isEmpty())
         g.commandBuffer.setHistoryAutoSave(true);
     updateMiniBuffer();
@@ -4165,8 +4201,8 @@ bool FakeVimHandler::Private::handleNoSubMode(const Input &input)
             m_insertState.newLineBefore = true;
         } else {
             moveUp();
-            m_oldPosition = position();
-            m_insertState.pos1 = m_oldPosition;
+            m_oldInternalPosition = position();
+            m_insertState.pos1 = m_oldInternalPosition;
             m_insertState.newLineAfter = true;
         }
         setTargetColumn();
@@ -4322,7 +4358,9 @@ bool FakeVimHandler::Private::handleNoSubMode(const Input &input)
         g.submode = CapitalZSubMode;
     } else if ((input.is('~') || input.is('u') || input.is('U'))) {
         g.movetype = MoveExclusive;
+        pushUndoState();
         if (isVisualMode()) {
+            setDotCommand(visualDotCommand() + QString::number(count()) + input.raw());
             if (isVisualLineMode())
                 g.rangemode = RangeLineMode;
             else if (isVisualBlockMode())
@@ -4336,7 +4374,6 @@ bool FakeVimHandler::Private::handleNoSubMode(const Input &input)
                 g.submode = UpCaseSubMode;
             finishMovement();
         } else if (g.gflag || (input.is('~') && hasConfig(ConfigTildeOp))) {
-            pushUndoState();
             if (atEndOfLine())
                 moveLeft();
             setAnchor();
@@ -4633,7 +4670,7 @@ EventResult FakeVimHandler::Private::handleInsertOrReplaceMode(const Input &inpu
         commitInsertState();
         invalidateInsertState();
         breakEditBlock();
-    } else if (m_oldPosition == position()) {
+    } else if (m_oldInternalPosition == position()) {
         setTargetColumn();
     }
 
@@ -5132,9 +5169,6 @@ bool FakeVimHandler::Private::parseExCommmand(QString *line, ExCommand *cmd)
     if (line->isEmpty())
         return false;
 
-    // remove leading colons and spaces
-    line->remove(QRegExp(_("^\\s*(:+\\s*)*")));
-
     // parse range first
     if (!parseLineRange(line, cmd))
         return false;
@@ -5187,6 +5221,15 @@ bool FakeVimHandler::Private::parseExCommmand(QString *line, ExCommand *cmd)
 
 bool FakeVimHandler::Private::parseLineRange(QString *line, ExCommand *cmd)
 {
+    // remove leading colons and spaces
+    line->remove(QRegExp(_("^\\s*(:+\\s*)*")));
+
+    // special case ':!...' (use invalid range)
+    if (line->startsWith(QLatin1Char('!'))) {
+        cmd->range = Range();
+        return true;
+    }
+
     // FIXME: that seems to be different for %w and %s
     if (line->startsWith(QLatin1Char('%')))
         line->replace(0, 1, _("1,$"));
@@ -5468,29 +5511,9 @@ bool FakeVimHandler::Private::handleExSetCommand(const ExCommand &cmd)
         return false;
 
     clearMessage();
-    SavedAction *act = theFakeVimSettings()->item(cmd.args);
     QTC_CHECK(!cmd.args.isEmpty()); // Handled by plugin.
-    if (act && act->value().canConvert(QVariant::Bool)) {
-        // Boolean config to be switched on.
-        bool oldValue = act->value().toBool();
-        if (oldValue == false)
-            act->setValue(true);
-        else if (oldValue == true)
-            {} // nothing to do
-        if (g.highlightsCleared && (cmd.args == _("hls") || cmd.args == _("hlsearch")))
-            highlightMatches(g.lastNeedle);
-    } else if (act) {
-        // Non-boolean to show.
-        showMessage(MessageInfo, cmd.args + QLatin1Char('=') + act->value().toString());
-    } else if (cmd.args.startsWith(_("no"))
-            && (act = theFakeVimSettings()->item(cmd.args.mid(2)))) {
-        // Boolean config to be switched off.
-        bool oldValue = act->value().toBool();
-        if (oldValue == true)
-            act->setValue(false);
-        else if (oldValue == false)
-            {} // nothing to do
-    } else if (cmd.args.contains(QLatin1Char('='))) {
+
+    if (cmd.args.contains(QLatin1Char('='))) {
         // Non-boolean config to set.
         int p = cmd.args.indexOf(QLatin1Char('='));
         QString error = theFakeVimSettings()
@@ -5498,10 +5521,42 @@ bool FakeVimHandler::Private::handleExSetCommand(const ExCommand &cmd)
         if (!error.isEmpty())
             showMessage(MessageError, error);
     } else {
-        showMessage(MessageError, FakeVimHandler::tr("Unknown option:") + QLatin1Char(' ') + cmd.args);
+        QString optionName = cmd.args;
+
+        bool toggleOption = optionName.endsWith(QLatin1Char('!'));
+        bool printOption = !toggleOption && optionName.endsWith(QLatin1Char('?'));
+        if (printOption || toggleOption)
+            optionName.chop(1);
+
+        bool negateOption = optionName.startsWith(_("no"));
+        if (negateOption)
+            optionName.remove(0, 2);
+
+        SavedAction *act = theFakeVimSettings()->item(optionName);
+        if (!act) {
+            showMessage(MessageError, FakeVimHandler::tr("Unknown option:")
+                        + QLatin1Char(' ') + cmd.args);
+        } else if (act->defaultValue().type() == QVariant::Bool) {
+            bool oldValue = act->value().toBool();
+            if (printOption) {
+                showMessage(MessageInfo, (oldValue ? _("") : _("no"))
+                            + act->settingsKey().toLower());
+            } else if (toggleOption || negateOption == oldValue) {
+                act->setValue(!oldValue);
+            }
+        } else if (negateOption && !printOption) {
+            showMessage(MessageError, FakeVimHandler::tr("Invalid argument:")
+                        + QLatin1Char(' ') + cmd.args);
+        } else if (toggleOption) {
+            showMessage(MessageError, FakeVimHandler::tr("Trailing characters:")
+                        + QLatin1Char(' ') + cmd.args);
+        } else {
+            showMessage(MessageInfo, act->settingsKey().toLower() + _("=")
+                        + act->value().toString());
+        }
     }
-    updateMiniBuffer();
     updateEditor();
+    updateHighlights();
     return true;
 }
 
@@ -5749,22 +5804,15 @@ bool FakeVimHandler::Private::handleExBangCommand(const ExCommand &cmd) // :!
     if (!cmd.cmd.isEmpty() || !cmd.hasBang)
         return false;
 
-    setCurrentRange(cmd.range);
-    int targetPosition = firstPositionInLine(lineForPosition(cmd.range.beginPos));
-    QString command = QString(cmd.cmd.mid(1) + QLatin1Char(' ') + cmd.args).trimmed();
-    QString text = selectText(cmd.range);
-    QProcess proc;
-    proc.start(command);
-    proc.waitForStarted();
-    if (HostOsInfo::isWindowsHost())
-        text.replace(_("\n"), _("\r\n"));
-    proc.write(text.toUtf8());
-    proc.closeWriteChannel();
-    proc.waitForFinished();
-    QString result = QString::fromUtf8(proc.readAllStandardOutput());
-    if (text.isEmpty()) {
-        emit q->extraInformationChanged(result);
-    } else {
+    bool replaceText = cmd.range.isValid();
+    const QString command = QString(cmd.cmd.mid(1) + QLatin1Char(' ') + cmd.args).trimmed();
+    const QString input = replaceText ? selectText(cmd.range) : QString();
+
+    const QString result = getProcessOutput(command, input);
+
+    if (replaceText) {
+        setCurrentRange(cmd.range);
+        int targetPosition = firstPositionInLine(lineForPosition(cmd.range.beginPos));
         beginEditBlock();
         removeText(currentRange());
         insertText(result);
@@ -5773,8 +5821,11 @@ bool FakeVimHandler::Private::handleExBangCommand(const ExCommand &cmd) // :!
         leaveVisualMode();
         //qDebug() << "FILTER: " << command;
         showMessage(MessageInfo, FakeVimHandler::tr("%n lines filtered.", 0,
-            text.count(QLatin1Char('\n'))));
+            input.count(QLatin1Char('\n'))));
+    } else if (!result.isEmpty()) {
+        emit q->extraInformationChanged(result);
     }
+
     return true;
 }
 
@@ -6492,10 +6543,12 @@ void FakeVimHandler::Private::moveToMatchingParanthesis()
         tc = m_cursor;
 
     emit q->moveToMatchingParenthesis(&moved, &forward, &tc);
-    if (moved && forward)
-        tc.movePosition(Left, KeepAnchor, 1);
-    setAnchorAndPosition(anc, tc.position());
-    setTargetColumn();
+    if (moved) {
+        if (forward)
+            tc.movePosition(Left, KeepAnchor, 1);
+        setAnchorAndPosition(anc, tc.position());
+        setTargetColumn();
+    }
 }
 
 int FakeVimHandler::Private::cursorLineOnScreen() const
@@ -7408,7 +7461,7 @@ void FakeVimHandler::Private::onContentsChanged(int position, int charsRemoved, 
     // Record inserted and deleted text in insert mode.
     if (isInsertMode() && (charsAdded > 0 || charsRemoved > 0)) {
         if (!isInsertStateValid()) {
-            m_insertState.pos1 = m_oldPosition;
+            m_insertState.pos1 = m_oldInternalPosition;
             g.dotCommand = _("i");
             resetCount();
         }
@@ -7419,7 +7472,7 @@ void FakeVimHandler::Private::onContentsChanged(int position, int charsRemoved, 
                 if (position < m_insertState.pos1) {
                     // backspaces
                     const int bs = m_insertState.pos1 - position;
-                    const QString inserted = textAt(position, m_oldPosition);
+                    const QString inserted = textAt(position, m_oldInternalPosition);
                     const QString removed = m_insertState.textBeforeCursor.right(bs);
                     // Ignore backspaces if same text was just inserted.
                     if ( !inserted.endsWith(removed) ) {
@@ -7441,9 +7494,9 @@ void FakeVimHandler::Private::onContentsChanged(int position, int charsRemoved, 
 
             m_insertState.pos2 = qMax(m_insertState.pos2 + charsAdded - charsRemoved,
                                       position + charsAdded);
-            m_oldPosition = position + charsAdded;
-            m_insertState.textBeforeCursor = textAt(document()->findBlock(m_oldPosition).position(),
-                                            m_oldPosition);
+            m_oldInternalPosition = position + charsAdded;
+            m_insertState.textBeforeCursor = textAt(document()->findBlock(m_oldInternalPosition).position(),
+                                            m_oldInternalPosition);
         }
     }
 
