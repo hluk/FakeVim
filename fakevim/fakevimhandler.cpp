@@ -158,6 +158,15 @@ enum Mode
     ExMode
 };
 
+enum BlockInsertMode
+{
+    NoneBlockInsertMode,
+    AppendBlockInsertMode,
+    AppendToEndOfLineBlockInsertMode,
+    InsertBlockInsertMode,
+    ChangeBlockInsertMode
+};
+
 /*! A \e SubMode is used for things that require one more data item
     and are 'nested' behind a \l Mode.
 */
@@ -268,20 +277,45 @@ struct CursorPosition
     int column; // Position on line.
 };
 
-struct Mark
+class Mark
 {
+public:
     Mark(const CursorPosition &pos = CursorPosition(), const QString &fileName = QString())
-        : position(pos), fileName(fileName) {}
+        : m_position(pos), m_fileName(fileName) {}
 
-    bool isValid() const { return position.isValid(); }
+    bool isValid() const { return m_position.isValid(); }
 
     bool isLocal(const QString &localFileName) const
     {
-        return fileName.isEmpty() || fileName == localFileName;
+        return m_fileName.isEmpty() || m_fileName == localFileName;
     }
 
-    CursorPosition position;
-    QString fileName;
+    /* Return position of mark within given document.
+     * If saved line number is too big, mark position is at the end of document.
+     * If line number is in document but column is too big, mark position is at the end of line.
+     */
+    CursorPosition position(const QTextDocument *document) const
+    {
+        QTextBlock block = document->findBlockByNumber(m_position.line);
+        CursorPosition pos;
+        if (block.isValid()) {
+            pos.line = m_position.line;
+            pos.column = qMax(0, qMin(m_position.column, block.length() - 2));
+        } else if (document->isEmpty()) {
+            pos.line = 0;
+            pos.column = 0;
+        } else {
+            pos.line = document->blockCount() - 1;
+            pos.column = qMax(0, document->lastBlock().length() - 2);
+        }
+        return pos;
+    }
+
+    const QString &fileName() const { return m_fileName; }
+
+private:
+    CursorPosition m_position;
+    QString m_fileName;
 };
 typedef QHash<QChar, Mark> Marks;
 typedef QHashIterator<QChar, Mark> MarksIterator;
@@ -948,7 +982,16 @@ public:
         // Set text only if input is ascii key without control modifier.
         if (m_text.isEmpty() && k >= 0 && k <= 0x7f && (m & HostOsInfo::controlModifier()) == 0) {
             QChar c = QChar::fromLatin1(k);
-            m_text = QString((m & ShiftModifier) != 0 ? c.toUpper() : c.toLower());
+            if (c.isLetter())
+                m_text = QString(isShift() ? c.toUpper() : c);
+            else if (!isShift())
+                m_text = c;
+        }
+
+        // Normalize <S-TAB>.
+        if (m_key == Qt::Key_Backtab) {
+            m_key = Qt::Key_Tab;
+            m_modifiers |= Qt::ShiftModifier;
         }
 
         // m_xkey is only a cache.
@@ -1018,7 +1061,7 @@ public:
             return m_key < a.m_key;
         // Text for some mapped key cannot be determined (e.g. <C-J>) so if text is not set for
         // one of compared keys ignore it.
-        if (!m_text.isEmpty() && !a.m_text.isEmpty())
+        if (!m_text.isEmpty() && !a.m_text.isEmpty() && m_text != _(" "))
             return m_text < a.m_text;
         return m_modifiers < a.m_modifiers;
     }
@@ -1552,6 +1595,7 @@ public:
     EventResult handleInsertOrReplaceMode(const Input &);
     void handleInsertMode(const Input &);
     void handleReplaceMode(const Input &);
+    void finishInsertMode();
 
     EventResult handleCommandMode(const Input &);
 
@@ -1736,6 +1780,11 @@ public:
         if (editor())
             EDITOR(setTextCursor(m_cursor));
     }
+    // Restore cursor from editor widget.
+    void pullCursor() {
+        if (editor())
+            m_cursor = EDITOR(textCursor());
+    }
 
     // Values to save when starting FakeVim processing.
     int m_firstVisibleLine;
@@ -1746,7 +1795,7 @@ public:
 
     bool handleFfTt(QString key);
 
-    void initVisualInsertMode(QChar command);
+    void enterVisualInsertMode(QChar command);
     void enterReplaceMode();
     void enterInsertMode();
     void enterInsertOrReplaceMode(Mode mode);
@@ -1834,7 +1883,7 @@ public:
     int m_oldInternalPosition; // copy from last event to check for external changes
     int m_oldInternalAnchor;
     int m_register;
-    bool m_visualBlockInsert;
+    BlockInsertMode m_visualBlockInsert;
 
     // Insert state to get last inserted text.
     struct InsertState {
@@ -1940,6 +1989,8 @@ public:
     // update marks on undo/redo
     void updateMarks(const Marks &newMarks);
     Marks m_marks; // local marks
+    CursorPosition markLessPosition() const { return mark(QLatin1Char('<')).position(document()); }
+    CursorPosition markGreaterPosition() const { return mark(QLatin1Char('>')).position(document()); }
 
     // vi style configuration
     QVariant config(int code) const { return theFakeVimSetting(code)->value(); }
@@ -2127,7 +2178,7 @@ void FakeVimHandler::Private::init()
 {
     m_inFakeVim = false;
     m_findStartPosition = -1;
-    m_visualBlockInsert = false;
+    m_visualBlockInsert = NoneBlockInsertMode;
     m_fakeEnd = false;
     m_positionPastEnd = false;
     m_anchorPastEnd = false;
@@ -2162,8 +2213,14 @@ void FakeVimHandler::Private::focus()
             setPosition(m_searchStartPosition);
             scrollToLine(m_searchFromScreenLine);
             setTargetColumn();
-        } else {
+            setAnchor();
+            commitCursor();
+        } else if (g.submode != NoSubMode || g.mode == ExMode) {
             leaveVisualMode();
+            setPosition(qMin(position(), anchor()));
+            setTargetColumn();
+            setAnchor();
+            commitCursor();
         }
 
         bool exitCommandLine = (g.subsubmode == SearchSubSubMode || g.mode == ExMode);
@@ -2176,14 +2233,14 @@ void FakeVimHandler::Private::focus()
         updateMiniBuffer();
     updateHighlights();
 
-    leaveFakeVim();
+    leaveFakeVim(false);
 }
 
 void FakeVimHandler::Private::enterFakeVim()
 {
     QTC_ASSERT(!m_inFakeVim, qDebug() << "enterFakeVim() shouldn't be called recursively!"; return);
 
-    m_cursor = EDITOR(textCursor());
+    pullCursor();
     if (m_cursor.isNull())
         m_cursor = QTextCursor(document());
 
@@ -2397,8 +2454,10 @@ void FakeVimHandler::Private::exportSelection()
             const int col2 = pos - document()->findBlock(pos).position();
             if (col1 > col2)
                 ++anc;
-            else
+            else if (!atEndOfLine())
                 ++pos;
+            // FIXME: After '$' command (i.e. m_visualTargetColumn == -1), end of selected lines
+            //        should be selected.
             setAnchorAndPosition(anc, pos);
             commitCursor();
             emit q->requestSetBlockSelection(false);
@@ -2426,8 +2485,8 @@ void FakeVimHandler::Private::exportSelection()
 
         setAnchorAndPosition(anc, pos);
 
-        setMark(QLatin1Char('<'), mark(QLatin1Char('<')).position);
-        setMark(QLatin1Char('>'), mark(QLatin1Char('>')).position);
+        setMark(QLatin1Char('<'), markLessPosition());
+        setMark(QLatin1Char('>'), markGreaterPosition());
     } else {
         if (g.subsubmode == SearchSubSubMode && !m_searchCursor.isNull())
             m_cursor = m_searchCursor;
@@ -2905,8 +2964,8 @@ void FakeVimHandler::Private::pushUndoState(bool overwrite)
     m_redo.clear();
     m_lastChangePosition = CursorPosition(document(), pos);
     if (isVisualMode()) {
-        setMark(QLatin1Char('<'), mark(QLatin1Char('<')).position);
-        setMark(QLatin1Char('>'), mark(QLatin1Char('>')).position);
+        setMark(QLatin1Char('<'), markLessPosition());
+        setMark(QLatin1Char('>'), markGreaterPosition());
     }
     m_undoState = State(revision(), m_lastChangePosition, m_marks, m_lastVisualMode,
                         m_lastVisualModeInverted);
@@ -3324,7 +3383,7 @@ void FakeVimHandler::Private::updateSelection()
             it.next();
             QTextEdit::ExtraSelection sel;
             sel.cursor = m_cursor;
-            setCursorPosition(&sel.cursor, it.value().position);
+            setCursorPosition(&sel.cursor, it.value().position(document()));
             sel.cursor.setPosition(sel.cursor.position(), MoveAnchor);
             sel.cursor.movePosition(Right, KeepAnchor);
             sel.format = m_cursor.blockCharFormat();
@@ -4037,13 +4096,13 @@ bool FakeVimHandler::Private::handleNoSubMode(const Input &input)
         }
     } else if ((!isVisualMode() && input.is('a')) || (isVisualMode() && input.is('A'))) {
         if (isVisualMode()) {
-            initVisualInsertMode(QLatin1Char('A'));
+            enterVisualInsertMode(QLatin1Char('A'));
         } else {
             setDotCommand(_("%1a"), count());
             moveRight(qMin(rightDist(), 1));
+            breakEditBlock();
+            enterInsertMode();
         }
-        breakEditBlock();
-        enterInsertMode();
     } else if (input.is('A')) {
         breakEditBlock();
         moveBehindEndOfLine();
@@ -4067,6 +4126,9 @@ bool FakeVimHandler::Private::handleNoSubMode(const Input &input)
         leaveVisualMode();
         g.submode = ChangeSubMode;
         finishMovement();
+    } else if ((input.is('c') || input.is('s')) && isVisualBlockMode()) {
+        resetCount();
+        enterVisualInsertMode(input.asChar());
     } else if (input.is('C')) {
         setAnchor();
         moveToEndOfLine();
@@ -4141,7 +4203,7 @@ bool FakeVimHandler::Private::handleNoSubMode(const Input &input)
             moveLeft();
     } else if (input.is('I')) {
         if (isVisualMode()) {
-            initVisualInsertMode(QLatin1Char('I'));
+            enterVisualInsertMode(QLatin1Char('I'));
         } else {
             if (g.gflag) {
                 setDotCommand(_("%1gI"), count());
@@ -4150,11 +4212,9 @@ bool FakeVimHandler::Private::handleNoSubMode(const Input &input)
                 setDotCommand(_("%1I"), count());
                 moveToFirstNonBlankOnLine();
             }
+            breakEditBlock();
+            enterInsertMode();
         }
-        pushUndoState();
-        breakEditBlock();
-        enterInsertMode();
-        setTargetColumn();
     } else if (input.isControl('i')) {
         jump(count());
     } else if (input.is('J')) {
@@ -4242,13 +4302,6 @@ bool FakeVimHandler::Private::handleNoSubMode(const Input &input)
         int repeat = count();
         while (--repeat >= 0)
             redo();
-    } else if (input.is('s') && isVisualBlockMode()) {
-        resetCount();
-        pushUndoState();
-        beginEditBlock();
-        initVisualInsertMode(QLatin1Char('s'));
-        endEditBlock();
-        enterInsertMode();
     } else if (input.is('s')) {
         pushUndoState();
         leaveVisualMode();
@@ -4290,8 +4343,8 @@ bool FakeVimHandler::Private::handleNoSubMode(const Input &input)
         scrollToLine(cursorLine() - sline);
     } else if (g.gflag && input.is('v')) {
         if (m_lastVisualMode != NoVisualMode) {
-            CursorPosition from = mark(QLatin1Char('<')).position;
-            CursorPosition to = mark(QLatin1Char('>')).position;
+            CursorPosition from = markLessPosition();
+            CursorPosition to = markGreaterPosition();
             toggleVisualMode(m_lastVisualMode);
             setCursorPosition(m_lastVisualModeInverted ? to : from);
             setAnchor();
@@ -4670,6 +4723,7 @@ EventResult FakeVimHandler::Private::handleInsertOrReplaceMode(const Input &inpu
         commitInsertState();
         invalidateInsertState();
         breakEditBlock();
+        m_visualBlockInsert = NoneBlockInsertMode;
     } else if (m_oldInternalPosition == position()) {
         setTargetColumn();
     }
@@ -4715,73 +4769,94 @@ void FakeVimHandler::Private::handleReplaceMode(const Input &input)
     }
 }
 
-void FakeVimHandler::Private::handleInsertMode(const Input &input)
+void FakeVimHandler::Private::finishInsertMode()
 {
-    if (input.isEscape()) {
-        bool newLineAfter = m_insertState.newLineAfter;
-        bool newLineBefore = m_insertState.newLineBefore;
+    bool newLineAfter = m_insertState.newLineAfter;
+    bool newLineBefore = m_insertState.newLineBefore;
 
-        // Repeat insertion [count] times.
-        // One instance was already physically inserted while typing.
-        if (!m_breakEditBlock && isInsertStateValid()) {
-            commitInsertState();
+    // Repeat insertion [count] times.
+    // One instance was already physically inserted while typing.
+    if (!m_breakEditBlock && isInsertStateValid()) {
+        commitInsertState();
 
-            QString text = m_lastInsertion;
-            const QString dotCommand = g.dotCommand;
-            const int repeat = count() - 1;
-            m_lastInsertion.clear();
-            joinPreviousEditBlock();
+        QString text = m_lastInsertion;
+        const QString dotCommand = g.dotCommand;
+        const int repeat = count() - 1;
+        m_lastInsertion.clear();
+        joinPreviousEditBlock();
 
-            if (newLineAfter) {
-                text.chop(1);
-                text.prepend(_("<END>\n"));
-            } else if (newLineBefore) {
-                text.prepend(_("<END>"));
-            }
+        if (newLineAfter) {
+            text.chop(1);
+            text.prepend(_("<END>\n"));
+        } else if (newLineBefore) {
+            text.prepend(_("<END>"));
+        }
 
-            replay(text, repeat);
+        replay(text, repeat);
 
-            if (m_visualBlockInsert && !text.contains(QLatin1Char('\n'))) {
-                const CursorPosition lastAnchor = mark(QLatin1Char('<')).position;
-                const CursorPosition lastPosition = mark(QLatin1Char('>')).position;
-                CursorPosition startPos(lastAnchor.line,
-                    qMin(lastPosition.column, lastAnchor.column));
-                CursorPosition pos = startPos;
-                if (dotCommand.endsWith(QLatin1Char('A')))
-                    pos.column = qMax(lastPosition.column, lastAnchor.column) + 1;
-                while (pos.line < lastPosition.line) {
-                    ++pos.line;
-                    QTextCursor tc = m_cursor;
-                    setCursorPosition(&tc, pos);
-                    if (pos.line != tc.blockNumber())
-                        break;
-                    m_cursor = tc;
-                    if (tc.positionInBlock() == pos.column)
-                        replay(text, repeat + 1);
+        if (m_visualBlockInsert != NoneBlockInsertMode && !text.contains(QLatin1Char('\n'))) {
+            const CursorPosition lastAnchor = markLessPosition();
+            const CursorPosition lastPosition = markGreaterPosition();
+            bool change = m_visualBlockInsert == ChangeBlockInsertMode;
+            const int insertColumn = (m_visualBlockInsert == InsertBlockInsertMode || change)
+                    ? qMin(lastPosition.column, lastAnchor.column)
+                    : qMax(lastPosition.column, lastAnchor.column) + 1;
+
+            CursorPosition pos(lastAnchor.line, insertColumn);
+
+            if (change)
+                pos.column = m_insertState.pos1 - document()->findBlock(m_insertState.pos1).position();
+
+            // Cursor position after block insert is on the first selected line,
+            // last selected column for 's' command, otherwise first selected column.
+            const int endColumn = change ? qMax(0, m_cursor.positionInBlock() - 1)
+                                         : qMin(lastPosition.column, lastAnchor.column);
+
+            while (pos.line < lastPosition.line) {
+                ++pos.line;
+                setCursorPosition(&m_cursor, pos);
+                if (m_visualBlockInsert == AppendToEndOfLineBlockInsertMode) {
+                    moveToEndOfLine();
+                } else if (m_visualBlockInsert == AppendBlockInsertMode) {
+                    // Prepend spaces if necessary.
+                    int spaces = pos.column - m_cursor.positionInBlock();
+                    if (spaces > 0) {
+                        setAnchor();
+                        m_cursor.insertText(QString(_(" ")).repeated(spaces));
+                    }
+                } else if (m_cursor.positionInBlock() != pos.column) {
+                    continue;
                 }
-
-                setCursorPosition(startPos);
-            } else {
-                moveLeft(qMin(1, leftDist()));
+                replay(text, repeat + 1);
             }
 
-            endEditBlock();
-            breakEditBlock();
-
-            m_lastInsertion = text;
-            g.dotCommand = dotCommand;
+            setCursorPosition(CursorPosition(lastAnchor.line, endColumn));
         } else {
             moveLeft(qMin(1, leftDist()));
         }
 
-        if (newLineBefore || newLineAfter)
-            m_lastInsertion.remove(0, m_lastInsertion.indexOf(QLatin1Char('\n')) + 1);
-        g.dotCommand.append(m_lastInsertion + _("<ESC>"));
+        endEditBlock();
+        breakEditBlock();
 
-        enterCommandMode();
-        setTargetColumn();
-        m_ctrlVActive = false;
-        m_visualBlockInsert = false;
+        m_lastInsertion = text;
+        g.dotCommand = dotCommand;
+    } else {
+        moveLeft(qMin(1, leftDist()));
+    }
+
+    if (newLineBefore || newLineAfter)
+        m_lastInsertion.remove(0, m_lastInsertion.indexOf(QLatin1Char('\n')) + 1);
+    g.dotCommand.append(m_lastInsertion + _("<ESC>"));
+
+    enterCommandMode();
+    setTargetColumn();
+    m_ctrlVActive = false;
+}
+
+void FakeVimHandler::Private::handleInsertMode(const Input &input)
+{
+    if (input.isEscape()) {
+        finishInsertMode();
     } else if (m_ctrlVActive) {
         insertInInsertMode(input.raw());
     } else if (input.isControl('o')) {
@@ -5100,7 +5175,7 @@ int FakeVimHandler::Private::parseLineAddress(QString *cmd)
             return -1;
         }
         cmd->remove(0, 1);
-        result = m.position.line;
+        result = m.position(document()).line;
     } else if (c.isDigit()) { // line with given number
         result = 0;
     } else if (c == QLatin1Char('-') || c == QLatin1Char('+')) { // add or subtract from current line number
@@ -5635,8 +5710,8 @@ bool FakeVimHandler::Private::handleExMoveCommand(const ExCommand &cmd)
         return true;
     }
 
-    CursorPosition lastAnchor = mark(QLatin1Char('<')).position;
-    CursorPosition lastPosition = mark(QLatin1Char('>')).position;
+    CursorPosition lastAnchor = markLessPosition();
+    CursorPosition lastPosition = markGreaterPosition();
 
     recordJump();
     setPosition(cmd.range.beginPos);
@@ -6023,8 +6098,15 @@ bool FakeVimHandler::Private::handleExCommandHelper(ExCommand &cmd)
 bool FakeVimHandler::Private::handleExPluginCommand(const ExCommand &cmd)
 {
     bool handled = false;
+    int pos = m_cursor.position();
+    commitCursor();
     emit q->handleExCommandRequested(&handled, cmd);
     //qDebug() << "HANDLER REQUEST: " << cmd.cmd << handled;
+    if (handled) {
+        pullCursor();
+        if (m_cursor.position() != pos)
+            recordJump(pos);
+    }
     return handled;
 }
 
@@ -7206,7 +7288,7 @@ bool FakeVimHandler::Private::passEventToEditor(QEvent &event)
     updateCursorShape();
 
     if (accepted)
-        m_cursor = EDITOR(textCursor());
+        pullCursor();
 
     return accepted;
 }
@@ -7388,8 +7470,8 @@ void FakeVimHandler::Private::leaveVisualMode()
     if (!isVisualMode())
         return;
 
-    setMark(QLatin1Char('<'), mark(QLatin1Char('<')).position);
-    setMark(QLatin1Char('>'), mark(QLatin1Char('>')).position);
+    setMark(QLatin1Char('<'), markLessPosition());
+    setMark(QLatin1Char('>'), markGreaterPosition());
     m_lastVisualModeInverted = anchor() > position();
     if (isVisualLineMode()) {
         g.rangemode = RangeLineMode;
@@ -7589,7 +7671,7 @@ void FakeVimHandler::Private::undoRedo(bool undo)
         state.revision = previousRevision;
     } else {
         updateFirstVisibleLine();
-        m_cursor = EDITOR(textCursor());
+        pullCursor();
     }
     stack2.push(state);
 
@@ -7646,28 +7728,41 @@ void FakeVimHandler::Private::enterInsertOrReplaceMode(Mode mode)
     clearLastInsertion();
 }
 
-void FakeVimHandler::Private::initVisualInsertMode(QChar command)
+void FakeVimHandler::Private::enterVisualInsertMode(QChar command)
 {
-    m_visualBlockInsert = isVisualBlockMode();
+    if (isVisualBlockMode()) {
+        bool append = command == QLatin1Char('A');
+        bool change = command == QLatin1Char('s') || command == QLatin1Char('c');
 
-    if (m_visualBlockInsert) {
         setDotCommand(visualDotCommand() + QString::number(count()) + command);
         leaveVisualMode();
 
-        const CursorPosition lastAnchor = mark(QLatin1Char('<')).position;
-        const CursorPosition lastPosition = mark(QLatin1Char('>')).position;
+        const CursorPosition lastAnchor = markLessPosition();
+        const CursorPosition lastPosition = markGreaterPosition();
         CursorPosition pos(lastAnchor.line,
-            command == QLatin1Char('A') ? qMax(lastPosition.column, lastAnchor.column) + 1
-                           : qMin(lastPosition.column, lastAnchor.column));
+            append ? qMax(lastPosition.column, lastAnchor.column) + 1
+                   : qMin(lastPosition.column, lastAnchor.column));
 
-        if (command == QLatin1Char('s')) {
+        if (append) {
+            m_visualBlockInsert = m_visualTargetColumn == -1 ? AppendToEndOfLineBlockInsertMode
+                                                             : AppendBlockInsertMode;
+        } else if (change) {
+            m_visualBlockInsert = ChangeBlockInsertMode;
+            pushUndoState();
+            beginEditBlock();
             Range range(position(), anchor(), RangeBlockMode);
             yankText(range, m_register);
             removeText(range);
+            endEditBlock();
+        } else {
+            m_visualBlockInsert = InsertBlockInsertMode;
         }
 
         setCursorPosition(pos);
+        if (m_visualBlockInsert == AppendToEndOfLineBlockInsertMode)
+            moveBehindEndOfLine();
     } else {
+        m_visualBlockInsert = NoneBlockInsertMode;
         leaveVisualMode();
         if (command == QLatin1Char('I')) {
             setDotCommand(_("%1i"), count());
@@ -7688,6 +7783,9 @@ void FakeVimHandler::Private::initVisualInsertMode(QChar command)
     }
 
     setAnchor();
+    if (m_visualBlockInsert != ChangeBlockInsertMode)
+        breakEditBlock();
+    enterInsertMode();
 }
 
 void FakeVimHandler::Private::enterCommandMode(Mode returnToMode)
@@ -8120,14 +8218,14 @@ bool FakeVimHandler::Private::jumpToMark(QChar mark, bool backTickMode)
         return false;
     }
     if (!m.isLocal(m_currentFileName)) {
-        emit q->jumpToGlobalMark(mark, backTickMode, m.fileName);
+        emit q->jumpToGlobalMark(mark, backTickMode, m.fileName());
         return false;
     }
 
     if ((mark == QLatin1Char('\'') || mark == QLatin1Char('`')) && !m_jumpListUndo.isEmpty())
         m_jumpListUndo.pop();
     recordJump();
-    setCursorPosition(m.position);
+    setCursorPosition(m.position(document()));
     if (!backTickMode)
         moveToFirstNonBlankOnLine();
     if (g.submode == NoSubMode)
