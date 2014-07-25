@@ -3,6 +3,17 @@
 %Import QtCore/QtCoremod.sip
 %Import QtGui/QtGuimod.sip
 
+%If (Qt_5_0_0 -)
+    %Import QtWidgets/QtWidgetsmod.sip
+%End
+
+
+int FAKEVIM_PYQT_VERSION;
+
+%ModuleCode
+static const int FAKEVIM_PYQT_VERSION = FAKEVIM_PYQT_MAJOR_VERSION;
+%End
+
 namespace FakeVim {
 
 %TypeHeaderCode

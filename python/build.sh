@@ -1,5 +1,19 @@
 #!/bin/bash
-set -e
+set -e -x
+
+# Executable paths
+export QMAKE=${QMAKE:-qmake}
+export SIP=${SIP:-sip}
+export PYTHON=${PYTHON:-python}
+
+# Project and library paths
+export PROJECT_PATH=${PROJECT_PATH:-"$PWD"}
+export LIBRARY_PATH=${LIBRARY_PATH:-"$PROJECT_PATH/fakevim"}
+export SIP_FILE_PATH=${SIP_FILE_PATH:-"$PROJECT_PATH/python/fakevim.sip"}
+
+# PyQt path to sip files (e.g. "QtCore/QtCoremod.sip"). Defaults to
+# "/usr/share/sip/PyQt4" or "/usr/share/sip/PyQt5" depending on Qt version.
+export PYQT_INCLUDE_PATH=${PYQT_INCLUDE_PATH:-""}
 
 # remove previous build
 rm -rf build
@@ -9,13 +23,14 @@ mkdir -p build
 cd build
 
 # generate files
-../configure.py
+"$PYTHON" "$PROJECT_PATH/python/configure.py"
 
-# compile
+# build
+"$QMAKE" .
 make
+cp {lib,}FakeVim.so
 
 # test
 export PYTHONPATH=$PWD
-export LD_LIBRARY_PATH=$PWD/../../build/fakevim:$LD_LIBRARY_PATH
-../test.py
+"$PYTHON" "$PROJECT_PATH/python/test.py"
 

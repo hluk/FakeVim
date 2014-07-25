@@ -1,8 +1,14 @@
-#!/usr/bin/python2
-from PyQt4.QtCore import *
-from PyQt4.QtGui import *
-import sys
+#!/usr/bin/env python
 import FakeVim
+import sys
+
+if FakeVim.FAKEVIM_PYQT_VERSION == 5:
+    from PyQt5.QtCore import *
+    from PyQt5.QtGui import *
+    from PyQt5.QtWidgets import *
+else:
+    from PyQt4.QtCore import *
+    from PyQt4.QtGui import *
 
 class Editor (QTextEdit):
     def __init__(self):
