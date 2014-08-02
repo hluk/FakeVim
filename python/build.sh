@@ -1,4 +1,9 @@
 #!/bin/bash
+# Example (see variable exports below):
+#   QMAKE=qmake-qt4 PYTHON=python2 ./python/build.sh
+#
+# Note: FakeVim library must be built with same version of Qt.
+
 set -e -x
 
 # Executable paths
