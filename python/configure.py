@@ -87,7 +87,9 @@ def main():
             sipInclude = sipConfig.sip_inc_dir,
             projectInclude = projectPath,
             libraryPath = libraryPath,
-            pythonLibrary = sysconfig.get_config_var('LIBDIR') + "/" + sysconfig.get_config_var('LDLIBRARY'),
+            pythonLibrary = sysconfig.get_config_var('LIBDIR') +
+                "/" + sysconfig.get_config_var('MULTIARCH') +
+                "/" + sysconfig.get_config_var('LDLIBRARY'),
             qtVersion = config.hasQt5() and 5 or 4
             )
         )
