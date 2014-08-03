@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 from FakeVim import FakeVimHandler, FakeVimProxy, FAKEVIM_PYQT_VERSION
 import sys
+from os.path import expanduser
 
 if FAKEVIM_PYQT_VERSION == 5:
     from PyQt5.QtCore import *
@@ -19,9 +20,16 @@ def overrides(interface_class):
 
 class Proxy (FakeVimProxy):
     """ Used by FakeVim to modify or retrieve editor state. """
-    def __init__(self, editor, handler):
+    def __init__(self, window, editor, handler):
         super(Proxy, self).__init__(handler)
-        self.editor = editor
+        self.__window = window
+        self.__editor = editor
+
+        self.__statusMessage = ""
+        self.__statusData = ""
+        self.__cursorPosition =  -1
+        self.__cursorAnchor =  -1
+        self.__eventFilter = None
 
     @overrides(FakeVimProxy)
     def handleExCommand(self, cmd):
@@ -33,28 +41,49 @@ class Proxy (FakeVimProxy):
 
     @overrides(FakeVimProxy)
     def enableBlockSelection(self, cursor):
-        self.editor.setTextCursor(cursor)
-        self.editor.setBlockSelection(True)
+        self.__editor.setTextCursor(cursor)
+        self.__editor.setBlockSelection(True)
 
     @overrides(FakeVimProxy)
     def disableBlockSelection(self):
-        self.editor.setBlockSelection(False)
+        self.__editor.setBlockSelection(False)
 
     @overrides(FakeVimProxy)
     def blockSelection(self):
-        self.editor.setBlockSelection(True)
-        return self.editor.textCursor()
+        self.__editor.setBlockSelection(True)
+        return self.__editor.textCursor()
 
     @overrides(FakeVimProxy)
     def hasBlockSelection(self):
-        return self.editor.hasBlockSelection()
+        return self.__editor.hasBlockSelection()
+
+    @overrides(FakeVimProxy)
+    def commandBufferChanged(self, msg, cursorPosition, cursorAnchor, messageLevel, eventFilter):
+        self.__cursorPosition = cursorPosition
+        self.__cursorAnchor = cursorAnchor
+        self.__statusMessage = msg
+        self.__updateStatusBar();
+        self.__eventFilter = eventFilter
+
+    @overrides(FakeVimProxy)
+    def statusDataChanged(self, msg):
+        self.__statusData = msg
+        self.__updateStatusBar()
+
+    @overrides(FakeVimProxy)
+    def extraInformationChanged(self, msg):
+        QMessageBox.information(self.__window, self.tr("Information"), msg)
+
+    def __updateStatusBar(self):
+        self.__window.statusBar().setStatus(self.__statusMessage, self.__statusData,
+                self.__cursorPosition, self.__cursorAnchor, self.__eventFilter)
 
 
 class Editor (QTextEdit):
     """ Editor widget driven by FakeVim. """
-    def __init__(self):
+    def __init__(self, parent = None):
         sup = super(Editor, self)
-        sup.__init__()
+        sup.__init__(parent)
 
         self.__context = QAbstractTextDocumentLayout.PaintContext()
         self.__lastCursorRect = QRect()
@@ -63,12 +92,6 @@ class Editor (QTextEdit):
         self.__searchSelection = []
 
         self.viewport().installEventFilter(self)
-
-        self.__handler = FakeVimHandler(self)
-        self.__handler.installEventFilter()
-        self.__handler.setupWidget()
-
-        self.proxy = Proxy(self, self.__handler)
 
         self.selectionChanged.connect(self.__onSelectionChanged)
         self.cursorPositionChanged.connect(self.__onSelectionChanged)
@@ -190,28 +213,76 @@ class Editor (QTextEdit):
 
         self.__updateSelections()
 
+
+class StatusBar (QStatusBar):
+    def __init__(self, window):
+        super(QStatusBar, self).__init__(window)
+
+        self.__statusMessageLabel = QLabel(self)
+        self.__statusDataLabel = QLabel(self)
+        self.__commandLine = QLineEdit(self)
+
+        self.addPermanentWidget(self.__statusMessageLabel, 1)
+        self.addPermanentWidget(self.__commandLine, 1)
+        self.addPermanentWidget(self.__statusDataLabel)
+
+        self.__commandLine.hide()
+        window.setStatusBar(self)
+
+    def setStatus(self, statusMessage, statusData, cursorPosition, cursorAnchor, eventFilter):
+        commandMode = cursorPosition != -1
+        self.__commandLine.setVisible(commandMode)
+        self.__statusMessageLabel.setVisible(not commandMode)
+
+        if commandMode:
+            self.__commandLine.installEventFilter(eventFilter)
+            self.__commandLine.setFocus()
+            self.__commandLine.setText(statusMessage)
+            self.__commandLine.setSelection(cursorPosition, cursorAnchor - cursorPosition)
+        else:
+            self.__statusMessageLabel.setText(statusMessage)
+
+        self.__statusDataLabel.setText(statusData)
+
+class MainWindow (QMainWindow):
+    def __init__(self, parent = None):
+        super(MainWindow, self).__init__(parent)
+        self.__editor = Editor(self)
+        font = self.__editor.font()
+        font.setFamily("Monospace")
+        self.__editor.setFont(font)
+        self.__editor.setText("""
+            ABCDEFGHIJKLMNOPQRSTUVWXZY
+            ABCDEFGHIJKLMNOPQRSTUVWXZY
+            ABCDEFGHIJKLMNOPQRSTUVWXZY
+            ABCDEFGHIJKLMNOPQRSTUVWXZY
+            ABCDEFGHIJKLMNOPQRSTUVWXZY
+            ABCDEFGHIJKLMNOPQRSTUVWXZY
+            ABCDEFGHIJKLMNOPQRSTUVWXZY
+            ABCDEFGHIJKLMNOPQRSTUVWXZY
+            ABCDEFGHIJKLMNOPQRSTUVWXZY
+            ABCDEFGHIJKLMNOPQRSTUVWXZY
+        """)
+
+        self.setCentralWidget(self.__editor)
+
+        self.move(0, 0)
+        self.resize(600, 600)
+
+        self.__statusBar = StatusBar(self)
+
+        self.__handler = FakeVimHandler(self.__editor)
+        self.__proxy = Proxy(self, self.__editor, self.__handler)
+
+        self.__handler.installEventFilter()
+        self.__handler.setupWidget()
+        self.__handler.handleCommand('source {home}/.vimrc'.format(home = expanduser("~")))
+
 if __name__ == "__main__":
     app = QApplication(sys.argv)
 
-    editor = Editor()
-    font = editor.font()
-    font.setFamily("Monospace")
-    editor.setFont(font)
-    editor.move(0, 0)
-    editor.resize(600, 600)
-    editor.setText("""
-        ABCDEFGHIJKLMNOPQRSTUVWXZY
-        ABCDEFGHIJKLMNOPQRSTUVWXZY
-        ABCDEFGHIJKLMNOPQRSTUVWXZY
-        ABCDEFGHIJKLMNOPQRSTUVWXZY
-        ABCDEFGHIJKLMNOPQRSTUVWXZY
-        ABCDEFGHIJKLMNOPQRSTUVWXZY
-        ABCDEFGHIJKLMNOPQRSTUVWXZY
-        ABCDEFGHIJKLMNOPQRSTUVWXZY
-        ABCDEFGHIJKLMNOPQRSTUVWXZY
-        ABCDEFGHIJKLMNOPQRSTUVWXZY
-    """)
-    editor.show()
+    window = MainWindow()
+    window.show()
 
     sys.exit(app.exec_())
 
