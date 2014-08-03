@@ -76,16 +76,17 @@ def main():
         QT += widgets
 
         TARGET = $${{target}}
-        HEADERS = $${{headers}}
-        SOURCES = $${{sources}}
+        HEADERS = $${{headers}} "{projectPythonInclude}/fakevimproxy.h"
+        SOURCES = $${{sources}} "{projectPythonInclude}/fakevimproxy.cpp"
 
-        INCLUDEPATH += "{sipInclude}" "{pythonInclude}" "{projectInclude}"
+        INCLUDEPATH += "{sipInclude}" "{pythonInclude}" "{projectInclude}" "{projectPythonInclude}"
         LIBS += -Wl,-rpath,"{libraryPath}" -L"{libraryPath}" -lfakevim "{pythonLibrary}"
         DEFINES += FAKEVIM_PYQT_MAJOR_VERSION={qtVersion}
         '''.format(
             pythonInclude = sysconfig.get_python_inc(),
             sipInclude = sipConfig.sip_inc_dir,
             projectInclude = projectPath,
+            projectPythonInclude = projectPath + "/python",
             libraryPath = libraryPath,
             pythonLibrary = sysconfig.get_config_var('LIBDIR') +
                 "/" + sysconfig.get_config_var('MULTIARCH') +

@@ -11,6 +11,7 @@
 int FAKEVIM_PYQT_VERSION;
 
 %ModuleCode
+#include <fakevim/fakevimhandler.h>
 static const int FAKEVIM_PYQT_VERSION = FAKEVIM_PYQT_MAJOR_VERSION;
 %End
 
@@ -37,10 +38,6 @@ enum RangeMode
     RangeBlockAndTailMode // Ctrl-v for D and X
 };
 
-}; // namespace Internal
-}; // namespace FakeVim
-
-/*
 struct Range
 {
 
@@ -49,12 +46,13 @@ struct Range
 %End
 
     Range();
-    Range(int b, int e, RangeMode m = RangeCharMode);
+    Range(int b, int e, FakeVim::Internal::RangeMode m = FakeVim::Internal::RangeCharMode);
     QString toString() const;
+    bool isValid() const;
 
     int beginPos;
     int endPos;
-    RangeMode rangemode;
+    FakeVim::Internal::RangeMode rangemode;
 };
 
 struct ExCommand
@@ -66,14 +64,14 @@ struct ExCommand
 
     ExCommand();
     ExCommand(const QString &cmd, const QString &args = QString(),
-        const Range &range = Range());
+        const FakeVim::Internal::Range &range = FakeVim::Internal::Range());
 
     bool matches(const QString &min, const QString &full) const;
 
     QString cmd;
     bool hasBang;
     QString args;
-    Range range;
+    FakeVim::Internal::Range range;
     int count;
 };
 
@@ -87,9 +85,11 @@ enum MessageLevel
     MessageError,   // error
     MessageShowCmd  // partial command
 };
-*/
 
-class FakeVimHandler /NoDefaultCtors/ {
+}; // namespace Internal
+}; // namespace FakeVim
+
+class FakeVimHandler : QObject /NoDefaultCtors/ {
 
 %TypeHeaderCode
 #include <fakevim/fakevimhandler.h>
@@ -98,6 +98,7 @@ using namespace FakeVim::Internal;
 
 public:
     explicit FakeVimHandler(QWidget *widget, QObject *parent /TransferThis/ = 0);
+
     ~FakeVimHandler();
 
     QWidget *widget();
@@ -109,7 +110,7 @@ public slots:
     void setCurrentFileName(const QString &fileName);
     QString currentFileName() const;
 
-    //void showMessage(MessageLevel level, const QString &msg);
+    void showMessage(FakeVim::Internal::MessageLevel level, const QString &msg);
 
     // This executes an "ex" style command taking context
     // information from the current widget.
@@ -138,29 +139,42 @@ public slots:
 
     bool jumpToLocalMark(QChar mark, bool backTickMode);
 
-signals:
-    void commandBufferChanged(const QString &msg, int cursorPos,
-        int anchorPos, int messageLevel, QObject *eventFilter);
-    void statusDataChanged(const QString &msg);
-    void extraInformationChanged(const QString &msg);
-    void selectionChanged(const QList<QTextEdit::ExtraSelection> &selection);
-    void highlightMatches(const QString &needle);
-    void writeAllRequested(QString *error);
-    /*void moveToMatchingParenthesis(bool *moved, bool *forward, QTextCursor *cursor);*/
-    /*void checkForElectricCharacter(bool *result, QChar c);*/
-    void indentRegion(int beginLine, int endLine, QChar typedChar);
-    void completionRequested();
-    void simpleCompletionRequested(const QString &needle, bool forward);
-    void windowCommandRequested(const QString &key, int count);
-    void findRequested(bool reverse);
-    void findNextRequested(bool reverse);
-    /*void handleExCommandRequested(bool *handled, const ExCommand &cmd);*/
-    void requestSetBlockSelection(bool on);
-    /*void requestHasBlockSelection(bool *on);*/
-    void foldToggle(int depth);
-    void foldAll(bool fold);
-    void fold(int depth, bool fold);
-    void foldGoTo(int count, bool current);
-    void jumpToGlobalMark(QChar mark, bool backTickMode, const QString &fileName);
+private:
+    virtual bool handleExCommand(const FakeVim::Internal::ExCommand &cmd);
+};
+
+class FakeVimProxy : QObject /NoDefaultCtors/ {
+%TypeHeaderCode
+#include <fakevimproxy.h>
+%End
+
+public:
+    explicit FakeVimProxy(QObject *handler, QObject *parent /TransferThis/ = 0);
+
+    virtual void commandBufferChanged(const QString &msg, int cursorPos,
+            int anchorPos, int messageLevel, QObject *eventFilter);
+    virtual void statusDataChanged(const QString &msg);
+    virtual void extraInformationChanged(const QString &msg);
+    virtual void selectionChanged(const QList<QTextEdit::ExtraSelection> &selection);
+    virtual void highlightMatches(const QString &needle);
+    virtual QString writeAllRequested();
+    virtual QTextCursor moveToMatchingParenthesis();
+    virtual bool checkForElectricCharacter(QChar c);
+    virtual void indentRegion(int beginLine, int endLine, QChar typedChar);
+    virtual void completionRequested();
+    virtual void simpleCompletionRequested(const QString &needle, bool forward);
+    virtual void windowCommandRequested(const QString &key, int count);
+    virtual void findRequested(bool reverse);
+    virtual void findNextRequested(bool reverse);
+    virtual bool handleExCommand(const FakeVim::Internal::ExCommand &);
+    virtual void disableBlockSelection();
+    virtual void enableBlockSelection(const QTextCursor &cursor);
+    virtual QTextCursor blockSelection();
+    virtual bool hasBlockSelection();
+    virtual void foldToggle(int depth);
+    virtual void foldAll(bool fold);
+    virtual void fold(int depth, bool fold);
+    virtual void foldGoTo(int count, bool current);
+    virtual void jumpToGlobalMark(QChar mark, bool backTickMode, const QString &fileName);
 };
 
