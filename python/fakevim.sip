@@ -37,6 +37,9 @@ enum RangeMode
     RangeBlockAndTailMode // Ctrl-v for D and X
 };
 
+}; // namespace Internal
+}; // namespace FakeVim
+
 /*
 struct Range
 {
@@ -90,6 +93,7 @@ class FakeVimHandler /NoDefaultCtors/ {
 
 %TypeHeaderCode
 #include <fakevim/fakevimhandler.h>
+using namespace FakeVim::Internal;
 %End
 
 public:
@@ -159,7 +163,4 @@ signals:
     void foldGoTo(int count, bool current);
     void jumpToGlobalMark(QChar mark, bool backTickMode, const QString &fileName);
 };
-
-}; // namespace FakeVim
-}; // namespace Internal
 
