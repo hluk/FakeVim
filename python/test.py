@@ -74,6 +74,10 @@ class Proxy (FakeVimProxy):
     def extraInformationChanged(self, msg):
         QMessageBox.information(self.__window, self.tr("Information"), msg)
 
+    @overrides(FakeVimProxy)
+    def highlightMatches(self, pattern):
+        self.__editor.highlightMatches(pattern)
+
     def __updateStatusBar(self):
         self.__window.statusBar().setStatus(self.__statusMessage, self.__statusData,
                 self.__cursorPosition, self.__cursorAnchor, self.__eventFilter)
@@ -103,6 +107,39 @@ class Editor (QTextEdit):
 
     def hasBlockSelection(self):
         return self.__hasBlockSelection
+
+    def highlightMatches(self, pattern):
+        cur = self.textCursor()
+
+        re = QRegExp(pattern)
+        cur = self.document().find(re)
+        a = cur.position()
+
+        self.__searchSelection.clear()
+
+        while not cur.isNull():
+            if cur.hasSelection():
+                selection = QAbstractTextDocumentLayout.Selection()
+                selection.format.setBackground(Qt.yellow)
+                selection.format.setForeground(Qt.black)
+                selection.cursor = cur
+                self.__searchSelection.append(selection)
+            else:
+                cur.movePosition(QTextCursor.NextCharacter)
+
+            cur = self.document().find(re, cur)
+            b = cur.position()
+
+            if a == b:
+                cur.movePosition(QTextCursor.NextCharacter)
+                cur = self.document().find(re, cur)
+                b = cur.position()
+
+                if (a == b):
+                    break
+            a = b
+
+        self.__updateSelections()
 
     def eventFilter(self, viewport, paintEvent):
         """ Handle paint event from text editor. """
