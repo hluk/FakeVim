@@ -1,7 +1,7 @@
 #!/usr/bin/env python
-from FakeVim import FakeVimHandler, FakeVimProxy, FAKEVIM_PYQT_VERSION
+from FakeVim import *
 import sys
-from os.path import expanduser
+import os
 
 if FAKEVIM_PYQT_VERSION == 5:
     from PyQt5.QtCore import *
@@ -22,6 +22,7 @@ class Proxy (FakeVimProxy):
     """ Used by FakeVim to modify or retrieve editor state. """
     def __init__(self, window, editor, handler):
         super(Proxy, self).__init__(handler)
+        self.__handler = handler
         self.__window = window
         self.__editor = editor
 
@@ -31,10 +32,83 @@ class Proxy (FakeVimProxy):
         self.__cursorAnchor =  -1
         self.__eventFilter = None
 
+        self.__fileName = ""
+        self.__lastSavePath = ""
+
+    def openFile(self, filePath):
+        filePath = os.path.expanduser(filePath)
+
+        try:
+            if os.path.isfile(filePath):
+                with open(filePath, 'r') as f:
+                    self.__fileName = filePath
+                    self.__editor.setPlainText(f.read())
+            else:
+                with open(filePath, 'w') as f:
+                    self.__fileName = filePath
+        except:
+            self.__handler.showMessage( MessageError,
+                    self.tr('Cannot open file "{filePath}"')
+                    .format(filePath = filePath) )
+
+    def needSave(self):
+        return self.__editor.document().isModified()
+
+    def maybeCloseEditor(self):
+        if self.needSave():
+            self.__handler.showMessage( MessageError,
+                    self.tr("No write since last change (add ! to override)") )
+            self.__updateStatusBar()
+
+            return False
+
+        return True
+
+    def commandQuit(self):
+        qApp.exit()
+
+    def commandWrite(self, filePath = None):
+        filePath = filePath and os.path.expanduser(filePath) or self.__fileName
+
+        if not filePath:
+            filePath = QFileDialog.getSaveFileName(self.__window, self.tr("Save File ..."), self.__lastSavePath)
+            if filePath:
+                self.__fileName = filePath
+                self.__lastSavePath = filePath
+
+        if not filePath:
+            return False
+
+        try:
+            with open(filePath, 'w') as f:
+                buffer = self.__editor.toPlainText()
+                f.write(buffer)
+                self.__handler.showMessage( MessageInfo, self.tr('"{filePath}" {lines}L, {characters}C written')
+                        .format(
+                            filePath = filePath,
+                            lines = buffer.count('\n'),
+                            characters = len(buffer)) )
+        except:
+            self.__handler.showMessage( MessageError,
+                    self.tr('Failed to save file "{filePath}"')
+                    .format(filePath = filePath) )
+
+        self.__editor.document().setModified(False)
+
+        return True
+
     @overrides(FakeVimProxy)
     def handleExCommand(self, cmd):
-        if cmd.matches("q", "quit"):
-            qApp.exit()
+        if cmd.matches("e", "edit"):
+            if cmd.hasBang or self.maybeCloseEditor():
+                self.openFile(cmd.args)
+        elif cmd.matches("q", "quit"):
+            if cmd.hasBang or self.maybeCloseEditor():
+                self.commandQuit()
+        elif cmd.matches("w", "write"):
+            self.commandWrite(cmd.args)
+        elif cmd == "wq":
+            self.commandWrite() and self.commandQuit()
         else:
             return False
         return True
@@ -79,7 +153,8 @@ class Proxy (FakeVimProxy):
         self.__editor.highlightMatches(pattern)
 
     def __updateStatusBar(self):
-        self.__window.statusBar().setStatus(self.__statusMessage, self.__statusData,
+        self.__window.statusBar().setStatus(
+                self.__statusMessage, self.__statusData,
                 self.__cursorPosition, self.__cursorAnchor, self.__eventFilter)
 
 
@@ -288,18 +363,6 @@ class MainWindow (QMainWindow):
         font = self.__editor.font()
         font.setFamily("Monospace")
         self.__editor.setFont(font)
-        self.__editor.setText("""
-            ABCDEFGHIJKLMNOPQRSTUVWXZY
-            ABCDEFGHIJKLMNOPQRSTUVWXZY
-            ABCDEFGHIJKLMNOPQRSTUVWXZY
-            ABCDEFGHIJKLMNOPQRSTUVWXZY
-            ABCDEFGHIJKLMNOPQRSTUVWXZY
-            ABCDEFGHIJKLMNOPQRSTUVWXZY
-            ABCDEFGHIJKLMNOPQRSTUVWXZY
-            ABCDEFGHIJKLMNOPQRSTUVWXZY
-            ABCDEFGHIJKLMNOPQRSTUVWXZY
-            ABCDEFGHIJKLMNOPQRSTUVWXZY
-        """)
 
         self.setCentralWidget(self.__editor)
 
@@ -313,12 +376,24 @@ class MainWindow (QMainWindow):
 
         self.__handler.installEventFilter()
         self.__handler.setupWidget()
-        self.__handler.handleCommand('source {home}/.vimrc'.format(home = expanduser("~")))
+        self.__handler.handleCommand(
+                'source {home}/.vimrc'.format(home = os.path.expanduser("~")))
+
+    def openFile(self, filePath):
+        self.__proxy.openFile(filePath)
+
+    @overrides(QMainWindow)
+    def closeEvent(self, event):
+        event.ignore()
+        if self.__proxy.maybeCloseEditor():
+            self.__proxy.commandQuit()
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
 
     window = MainWindow()
+    if len(sys.argv) > 1:
+        window.openFile(sys.argv[1])
     window.show()
 
     sys.exit(app.exec_())
