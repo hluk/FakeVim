@@ -15,18 +15,6 @@ int FAKEVIM_PYQT_VERSION;
 static const int FAKEVIM_PYQT_VERSION = FAKEVIM_PYQT_MAJOR_VERSION;
 %End
 
-namespace FakeVim {
-
-%TypeHeaderCode
-#include <fakevim/fakevimhandler.h>
-%End
-
-namespace Internal {
-
-%TypeHeaderCode
-#include <fakevim/fakevimhandler.h>
-%End
-
 enum RangeMode
 {
     // Reordering first three enum items here will break
@@ -43,16 +31,17 @@ struct Range
 
 %TypeHeaderCode
 #include <fakevim/fakevimhandler.h>
+using namespace FakeVim::Internal;
 %End
 
     Range();
-    Range(int b, int e, FakeVim::Internal::RangeMode m = FakeVim::Internal::RangeCharMode);
+    Range(int b, int e, RangeMode m = RangeCharMode);
     QString toString() const;
     bool isValid() const;
 
     int beginPos;
     int endPos;
-    FakeVim::Internal::RangeMode rangemode;
+    RangeMode rangemode;
 };
 
 struct ExCommand
@@ -60,18 +49,19 @@ struct ExCommand
 
 %TypeHeaderCode
 #include <fakevim/fakevimhandler.h>
+using namespace FakeVim::Internal;
 %End
 
     ExCommand();
     ExCommand(const QString &cmd, const QString &args = QString(),
-        const FakeVim::Internal::Range &range = FakeVim::Internal::Range());
+        const Range &range = Range());
 
     bool matches(const QString &min, const QString &full) const;
 
     QString cmd;
     bool hasBang;
     QString args;
-    FakeVim::Internal::Range range;
+    Range range;
     int count;
 };
 
@@ -85,9 +75,6 @@ enum MessageLevel
     MessageError,   // error
     MessageShowCmd  // partial command
 };
-
-}; // namespace Internal
-}; // namespace FakeVim
 
 class FakeVimHandler : QObject /NoDefaultCtors/ {
 
@@ -110,7 +97,7 @@ public slots:
     void setCurrentFileName(const QString &fileName);
     QString currentFileName() const;
 
-    void showMessage(FakeVim::Internal::MessageLevel level, const QString &msg);
+    void showMessage(MessageLevel level, const QString &msg);
 
     // This executes an "ex" style command taking context
     // information from the current widget.
@@ -140,7 +127,7 @@ public slots:
     bool jumpToLocalMark(QChar mark, bool backTickMode);
 
 private:
-    virtual bool handleExCommand(const FakeVim::Internal::ExCommand &cmd);
+    virtual bool handleExCommand(const ExCommand &cmd);
 };
 
 class FakeVimProxy : QObject /NoDefaultCtors/ {
@@ -166,7 +153,7 @@ public:
     virtual void windowCommandRequested(const QString &key, int count);
     virtual void findRequested(bool reverse);
     virtual void findNextRequested(bool reverse);
-    virtual bool handleExCommand(const FakeVim::Internal::ExCommand &);
+    virtual bool handleExCommand(const ExCommand &);
     virtual void disableBlockSelection();
     virtual void enableBlockSelection(const QTextCursor &cursor);
     virtual QTextCursor blockSelection();
