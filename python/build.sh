@@ -33,7 +33,6 @@ cd build
 # build
 "$QMAKE" .
 make
-cp {lib,}FakeVim.so
 
 # test
 export PYTHONPATH=$PWD

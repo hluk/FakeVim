@@ -5,7 +5,6 @@ Few notes:
  * Bindings build process is handled using
    PyQt's [SIP](http://pyqt.sourceforge.net/Docs/sip4/index.html).
  * Debug build is enabled by default
-   (for release verison: delete line containing `debug=1` in `configure.py`).
  * Compile FakeVim library and binndings with same version of Qt.
  * Use same major version of python to build and run.
 

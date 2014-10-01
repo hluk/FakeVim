@@ -2,6 +2,7 @@
 import sipconfig
 import subprocess
 import os
+import site
 
 from distutils import sysconfig
 
@@ -70,18 +71,25 @@ def main():
 
     with open('fakevim_python.pro', 'a') as pro:
         pro.write(
-        '''\
+        '''
         TEMPLATE = lib
-        CONFIG += release plugin
+        CONFIG += release plugin no_plugin_name_prefix
         QT += widgets
 
-        TARGET = $${{target}}
-        HEADERS = $${{headers}} "{projectPythonInclude}/fakevimproxy.h"
-        SOURCES = $${{sources}} "{projectPythonInclude}/fakevimproxy.cpp"
+        TARGET = $$target
+        HEADERS = $$headers "{projectPythonInclude}/fakevimproxy.h"
+        SOURCES = $$sources "{projectPythonInclude}/fakevimproxy.cpp"
 
         INCLUDEPATH += "{sipInclude}" "{pythonInclude}" "{projectInclude}" "{projectPythonInclude}"
         LIBS += -Wl,-rpath,"{libraryPath}" -L"{libraryPath}" -lfakevim "{pythonLibrary}"
         DEFINES += FAKEVIM_PYQT_MAJOR_VERSION={qtVersion}
+
+        isEmpty(PREFIX) {{
+            PREFIX = "{installPath}"
+        }}
+
+        target.path = $$PREFIX
+        INSTALLS += target
         '''.format(
             pythonInclude = sysconfig.get_python_inc(),
             sipInclude = sipConfig.sip_inc_dir,
@@ -91,8 +99,9 @@ def main():
             pythonLibrary = sysconfig.get_config_var('LIBDIR') +
                 "/" + sysconfig.get_config_var('MULTIARCH') +
                 "/" + sysconfig.get_config_var('LDLIBRARY'),
-            qtVersion = config.hasQt5() and 5 or 4
-            )
+            qtVersion = config.hasQt5() and 5 or 4,
+            installPath = site.getusersitepackages()
+            ).replace('\n        ', '\n')
         )
 
 if __name__ == "__main__":
