@@ -32,7 +32,7 @@ FakeVimProxy::FakeVimProxy(QObject *handler, QObject *parent)
 }
 
 void FakeVimProxy::on_commandBufferChanged(const QString &msg, int cursorPos,
-        int anchorPos, int messageLevel, QObject *eventFilter)
+        int anchorPos, int messageLevel, FakeVimHandler *eventFilter)
 {
     commandBufferChanged(msg, cursorPos, anchorPos, messageLevel, eventFilter);
 }

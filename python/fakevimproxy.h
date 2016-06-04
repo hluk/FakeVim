@@ -6,7 +6,8 @@
 
 class QString;
 
-typedef FakeVim::Internal::ExCommand ExCommand;
+using ExCommand = FakeVim::Internal::ExCommand;
+using FakeVimHandler = FakeVim::Internal::FakeVimHandler;
 
 class FakeVimProxy : public QObject
 {
@@ -41,7 +42,7 @@ public:
 
 private slots:
     void on_commandBufferChanged(const QString &msg, int cursorPos,
-            int anchorPos, int messageLevel, QObject *eventFilter);
+            int anchorPos, int messageLevel, FakeVimHandler *eventFilter);
     void on_statusDataChanged(const QString &msg);
     void on_extraInformationChanged(const QString &msg);
     void on_selectionChanged(const QList<QTextEdit::ExtraSelection> &selection);
