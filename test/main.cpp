@@ -211,7 +211,7 @@ public slots:
         *handled = true;
     }
 
-    void requestSetBlockSelection(bool on = false)
+    void requestSetBlockSelection(const QTextCursor &tc)
     {
         QTextEdit *ed = qobject_cast<QTextEdit *>(m_widget);
         if (!ed)
@@ -223,46 +223,67 @@ public slots:
         m_blockSelection.clear();
         m_clearSelection.clear();
 
-        if (on) {
-            QTextCursor cur = ed->textCursor();
+        QTextCursor cur = tc;
 
-            QTextEdit::ExtraSelection selection;
-            selection.format.setBackground( pal.color(QPalette::Base) );
-            selection.format.setForeground( pal.color(QPalette::Text) );
+        QTextEdit::ExtraSelection selection;
+        selection.format.setBackground( pal.color(QPalette::Base) );
+        selection.format.setForeground( pal.color(QPalette::Text) );
+        selection.cursor = cur;
+        m_clearSelection.append(selection);
+
+        selection.format.setBackground( pal.color(QPalette::Highlight) );
+        selection.format.setForeground( pal.color(QPalette::HighlightedText) );
+
+        int from = cur.positionInBlock();
+        int to = cur.anchor() - cur.document()->findBlock(cur.anchor()).position();
+        const int min = qMin(cur.position(), cur.anchor());
+        const int max = qMax(cur.position(), cur.anchor());
+        for ( QTextBlock block = cur.document()->findBlock(min);
+              block.isValid() && block.position() < max; block = block.next() ) {
+            cur.setPosition( block.position() + qMin(from, block.length()) );
+            cur.setPosition( block.position() + qMin(to, block.length()), QTextCursor::KeepAnchor );
             selection.cursor = cur;
-            m_clearSelection.append(selection);
-
-            selection.format.setBackground( pal.color(QPalette::Highlight) );
-            selection.format.setForeground( pal.color(QPalette::HighlightedText) );
-
-            int from = cur.positionInBlock();
-            int to = cur.anchor() - cur.document()->findBlock(cur.anchor()).position();
-            const int min = qMin(cur.position(), cur.anchor());
-            const int max = qMax(cur.position(), cur.anchor());
-            for ( QTextBlock block = cur.document()->findBlock(min);
-                  block.isValid() && block.position() < max; block = block.next() ) {
-                cur.setPosition( block.position() + qMin(from, block.length()) );
-                cur.setPosition( block.position() + qMin(to, block.length()), QTextCursor::KeepAnchor );
-                selection.cursor = cur;
-                m_blockSelection.append(selection);
-            }
-
-            connect( ed, SIGNAL(selectionChanged()),
-                     SLOT(requestSetBlockSelection()), Qt::UniqueConnection );
-
-            QPalette pal2 = ed->palette();
-            pal2.setColor(QPalette::Highlight, Qt::transparent);
-            pal2.setColor(QPalette::HighlightedText, Qt::transparent);
-            ed->setPalette(pal2);
-
-        } else {
-            ed->setPalette(pal);
-
-            disconnect( ed, SIGNAL(selectionChanged()),
-                        this, SLOT(requestSetBlockSelection()) );
+            m_blockSelection.append(selection);
         }
 
+        connect( ed, &QTextEdit::selectionChanged,
+                 this, &Proxy::updateBlockSelection, Qt::UniqueConnection );
+
+        QPalette pal2 = ed->palette();
+        pal2.setColor(QPalette::Highlight, Qt::transparent);
+        pal2.setColor(QPalette::HighlightedText, Qt::transparent);
+        ed->setPalette(pal2);
+
         updateExtraSelections();
+    }
+
+    void requestDisableBlockSelection()
+    {
+        QTextEdit *ed = qobject_cast<QTextEdit *>(m_widget);
+        if (!ed)
+            return;
+
+        QPalette pal = ed->parentWidget() != NULL ? ed->parentWidget()->palette()
+                                                  : QApplication::palette();
+
+        m_blockSelection.clear();
+        m_clearSelection.clear();
+
+        ed->setPalette(pal);
+
+        disconnect( ed, &QTextEdit::selectionChanged,
+                    this, &Proxy::updateBlockSelection );
+
+        updateExtraSelections();
+    }
+
+    void updateBlockSelection()
+    {
+        QTextEdit *ed = qobject_cast<QTextEdit *>(m_widget);
+        if (!ed)
+            return;
+
+        requestSetBlockSelection(ed->textCursor());
     }
 
     void requestHasBlockSelection(bool *on)
@@ -444,23 +465,25 @@ void clearUndoRedo(QWidget *editor)
 
 void connectSignals(FakeVimHandler &handler, Proxy &proxy)
 {
-    QObject::connect(&handler, SIGNAL(commandBufferChanged(QString,int,int,int,QObject*)),
-        &proxy, SLOT(changeStatusMessage(QString,int)));
-    QObject::connect(&handler, SIGNAL(extraInformationChanged(QString)),
-        &proxy, SLOT(changeExtraInformation(QString)));
-    QObject::connect(&handler, SIGNAL(statusDataChanged(QString)),
-        &proxy, SLOT(changeStatusData(QString)));
-    QObject::connect(&handler, SIGNAL(highlightMatches(QString)),
-        &proxy, SLOT(highlightMatches(QString)));
-    QObject::connect(&handler, SIGNAL(handleExCommandRequested(bool*,ExCommand)),
-        &proxy, SLOT(handleExCommand(bool*,ExCommand)));
-    QObject::connect(&handler, SIGNAL(requestSetBlockSelection(bool)),
-        &proxy, SLOT(requestSetBlockSelection(bool)));
-    QObject::connect(&handler, SIGNAL(requestHasBlockSelection(bool*)),
-        &proxy, SLOT(requestHasBlockSelection(bool*)));
+    QObject::connect(&handler, &FakeVimHandler::commandBufferChanged,
+        &proxy, &Proxy::changeStatusMessage);
+    QObject::connect(&handler, &FakeVimHandler::extraInformationChanged,
+        &proxy, &Proxy::changeExtraInformation);
+    QObject::connect(&handler, &FakeVimHandler::statusDataChanged,
+        &proxy, &Proxy::changeStatusData);
+    QObject::connect(&handler, &FakeVimHandler::highlightMatches,
+        &proxy, &Proxy::highlightMatches);
+    QObject::connect(&handler, &FakeVimHandler::handleExCommandRequested,
+        &proxy, &Proxy::handleExCommand);
+    QObject::connect(&handler, &FakeVimHandler::requestSetBlockSelection,
+        &proxy, &Proxy::requestSetBlockSelection);
+    QObject::connect(&handler, &FakeVimHandler::requestDisableBlockSelection,
+        &proxy, &Proxy::requestDisableBlockSelection);
+    QObject::connect(&handler, &FakeVimHandler::requestHasBlockSelection,
+        &proxy, &Proxy::requestHasBlockSelection);
 
-    QObject::connect(&proxy, SIGNAL(handleInput(QString)),
-        &handler, SLOT(handleInput(QString)));
+    QObject::connect(&proxy, &Proxy::handleInput,
+        &handler, [&] (const QString &text) { handler.handleInput(text); });
 }
 
 int main(int argc, char *argv[])
