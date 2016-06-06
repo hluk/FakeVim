@@ -8,14 +8,18 @@ Few notes:
  * Compile FakeVim library and binndings with same version of Qt.
  * Use same major version of python to build and run.
 
-To build run bash script `build.sh` or just create `build` sub-directory in
-this directory and from there run `configure.py`, `qmake` and `make`.
+To build and install run following commands from this directory.
 
-To install run `make install` from `build` sub-directory.
+```bash
+./configure.py
+qmake
+make install
+```
 
 On Ubuntu 14.04, package `pyqt5-dev` must be installed. Additionally build
 script needs to be invoked with following command.
+
 ```
-PYTHON=python3 ./build.sh
+python3 ./configure.py
 ```
 

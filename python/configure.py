@@ -56,7 +56,7 @@ def main():
     sipConfig = sipconfig.Configuration()
     config = Config(qmakePath)
 
-    projectPath = getEnv('PROJECT_PATH', '../..')
+    projectPath = getEnv('PROJECT_PATH', '..')
     libraryPath = getEnv('LIBRARY_PATH', projectPath + '/fakevim')
     sipFilePath = getEnv('SIP_FILE_PATH', projectPath + '/python/fakevim.sip')
     pyQtIncludePath = getEnv('PYQT_INCLUDE_PATH',

@@ -138,3 +138,8 @@ Implementation
 There are appropriate signals emitted for command which has to be processed by the underlying editor widget (folds, windows, tabs, command line, messages etc.).
 See example in `test/` directory or implementation of FakeVim plugin in Qt Creator IDE.
 
+Python Bindings
+---------------
+
+To install Python bindings for FakeVim see "python/README.md" file.
+
