@@ -234,8 +234,11 @@ public slots:
             m_blockSelection.append(selection);
         }
 
+        disconnect( ed, &QTextEdit::selectionChanged,
+                    this, &Proxy::updateBlockSelection );
+        ed->setTextCursor(tc);
         connect( ed, &QTextEdit::selectionChanged,
-                 this, &Proxy::updateBlockSelection, Qt::UniqueConnection );
+                 this, &Proxy::updateBlockSelection );
 
         QPalette pal2 = ed->palette();
         pal2.setColor(QPalette::Highlight, Qt::transparent);
