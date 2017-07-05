@@ -1,4 +1,6 @@
 include(../fakevim/fakevim.pri)
 
-SOURCES += main.cpp
+SOURCES += \
+    editor.cpp \
+    main.cpp
 CONFIG += qt
