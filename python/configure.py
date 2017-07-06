@@ -69,6 +69,15 @@ def main():
         sipFilePath
         ])
 
+    # Find libpython
+    pythonLibDir = sysconfig.get_config_var('LIBDIR')
+    pythonLdLibrary = sysconfig.get_config_var('LDLIBRARY')
+    pythonLibrary = pythonLibDir + "/" + pythonLdLibrary
+    if not os.path.isfile(pythonLibrary):
+        pythonLibrary = pythonLibDir + "/" \
+                + sysconfig.get_config_var('MULTIARCH') + "/" \
+                + pythonLdLibrary
+
     with open('fakevim_python.pro', 'a') as pro:
         pro.write(
         '''
@@ -96,8 +105,7 @@ def main():
             projectInclude = projectPath,
             projectPythonInclude = projectPath + "/python",
             libraryPath = libraryPath,
-            pythonLibrary = sysconfig.get_config_var('LIBDIR') +
-                "/" + sysconfig.get_config_var('LDLIBRARY'),
+            pythonLibrary = pythonLibrary,
             qtVersion = config.hasQt5() and 5 or 4,
             installPath = site.getusersitepackages()
             ).replace('\n        ', '\n')
