@@ -97,7 +97,6 @@ def main():
             projectPythonInclude = projectPath + "/python",
             libraryPath = libraryPath,
             pythonLibrary = sysconfig.get_config_var('LIBDIR') +
-                "/" + sysconfig.get_config_var('MULTIARCH') +
                 "/" + sysconfig.get_config_var('LDLIBRARY'),
             qtVersion = config.hasQt5() and 5 or 4,
             installPath = site.getusersitepackages()
