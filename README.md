@@ -11,6 +11,35 @@ To build the library and simple example editor (in `example` directory), run fol
     qmake
     make
 
+Preferably use **CMake to install** the library.
+
+    cmake -DCMAKE_INSTALL_PREFIX=/usr/local .
+    make install
+
+Build and run **example with **QMake**:
+
+    cd example
+    qmake && make
+    ./example
+
+Build and run **example with **CMake**:
+
+    cd example
+    fakevim_DIR=/usr/local/lib/cmake/fakevim cmake && make
+    ./fakevim_example
+
+Build and run **tests with QMake**:
+
+    cd tests
+    qmake && make
+    ./tests
+
+Build and run **tests with CMake**:
+
+    cd tests
+    fakevim_DIR=/usr/local/lib/cmake/fakevim cmake && make
+    ./fakevim_tests
+
 Supported Features
 ------------------
 

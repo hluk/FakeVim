@@ -29,6 +29,8 @@
 #include <utils/savedaction.h>
 */
 
+#include "private/fakevim_export.h"
+
 #include <QCoreApplication>
 #include <QHash>
 #include <QObject>
@@ -136,8 +138,8 @@ private:
     QHash<int, QString> m_codeToName;
 };
 
-FakeVimSettings *theFakeVimSettings();
-FakeVimAction *theFakeVimSetting(int code);
+FAKEVIM_EXPORT FakeVimSettings *theFakeVimSettings();
+FAKEVIM_EXPORT FakeVimAction *theFakeVimSetting(int code);
 
 } // namespace Internal
 } // namespace FakeVim

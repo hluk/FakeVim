@@ -25,6 +25,8 @@
 
 #pragma once
 
+#include "private/fakevim_export.h"
+
 #include <QObject>
 #include <QTextEdit>
 
@@ -42,7 +44,7 @@ enum RangeMode
     RangeBlockAndTailMode // Ctrl-v for D and X
 };
 
-struct Range
+struct FAKEVIM_EXPORT Range
 {
     Range() {}
     Range(int b, int e, RangeMode m = RangeCharMode);
@@ -54,7 +56,7 @@ struct Range
     RangeMode rangemode = RangeCharMode;
 };
 
-struct ExCommand
+struct FAKEVIM_EXPORT ExCommand
 {
     ExCommand() {}
     ExCommand(const QString &cmd, const QString &args = QString(),
@@ -80,7 +82,7 @@ enum MessageLevel
     MessageShowCmd  // partial command
 };
 
-class FakeVimHandler : public QObject
+class FAKEVIM_EXPORT FakeVimHandler : public QObject
 {
     Q_OBJECT
 
