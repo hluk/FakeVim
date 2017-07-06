@@ -27,6 +27,9 @@ int main(int argc, char *argv[])
 {
     QApplication app(argc, argv);
 
+    const QStringList args = qApp->arguments();
+    const QString fileToEdit = args.value(1);
+
     // If FAKEVIM_PLAIN_TEXT_EDIT environment variable is 1 use QPlainTextEdit instead on QTextEdit;
     bool usePlainTextEdit = qgetenv("FAKEVIM_PLAIN_TEXT_EDIT") == "1";
 
@@ -41,13 +44,19 @@ int main(int argc, char *argv[])
     initMainWindow(&mainWindow, editor, usePlainTextEdit ? "QPlainTextEdit" : "QTextEdit");
 
     // Connect slots to FakeVimHandler signals.
-    connectSignals(&handler, &mainWindow, editor);
+    connectSignals(&handler, &mainWindow, editor, fileToEdit);
 
     // Initialize FakeVimHandler.
     initHandler(&handler);
 
     // Clear undo and redo queues.
     clearUndoRedo(editor);
+
+    if (args.size() > 2) {
+        for (const QString &cmd : args.mid(2))
+            handler.handleInput(cmd);
+        return 0;
+    }
 
     return app.exec();
 }

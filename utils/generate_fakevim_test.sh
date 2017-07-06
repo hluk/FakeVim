@@ -1,93 +1,121 @@
 #!/bin/bash
-# Generate tests for FakeVim.
-testfile="test.cpp"
-logfile="test.log"
-vim="vim"
-vimopts=(-X -u NONE)
+VIM=vim
+FAKEVIM=${FAKEVIM:-test/test}
+diff=meld
+cmdfile=fakevim_test_cmd.log
+INDENT=${INDENT:-'    '}
+options="set smartindent|set autoindent|set nocindent"
 
-print_cmd()
-{
-    printf '%s' "$@" | sed 's/<cr>/\n/gI;s/<esc>//gI'
+print_help() {
+    echo "USAGE: $0 FILE CMD..."
+    echo "  Run input in both Vim and FakeVim and compare result."
+    echo "  Results are stored in FILE.vim and FILE.fakevim."
+    echo "  Tests for FakeVim in Qt Creator are stored in \"$cmdfile\" file."
 }
 
-print_status()
-{
-    {
-        if [ $# -eq 0 ]; then
-            printf 'data.setText("';
+print() {
+    for arg in "$@"; do
+        if [ "$arg" == "N" ]; then
+            printf '\n'
         else
-            printf 'KEYS("%s", "' "$1";
+            printf "%s" "$arg"
         fi
-
-        local first=1
-        while read line
-        do
-            if [[ $first == 1 ]]; then
-                first=0
-            else
-                printf '" N "'
-            fi
-            printf '%s' "$(sed 's/|/" X "/' <<< "$line")"
-        done
-
-        printf '");\n';
-    } | sed 's/N "" X/N X/' >> "$logfile"
+    done >> "$cmdfile"
 }
 
-clean_up()
-{
-    rm -f ".${testfile}"*".swp" "$testfile"* "$logfile"
+print_content() {
+    local file=$1
+    sed \
+        -e 's/"/\\"/g' \
+        -e 's/^/'"$INDENT"'"/' \
+        -e 's/$/" N/' "$file" \
+        >> "$cmdfile"
 }
 
-main()
-{
-    if [ $# -lt 2 ]; then
-        printf "Usage: %s [file content] [commands ...]\n" 1>&2
-        exit 2
+vim_exec() {
+    for cmd in "$@"; do
+        printf "%s" "|map \\X $cmd|normal \\X"
+    done
+}
+
+run_vim() {
+    local file=$1
+    shift
+    "$VIM" \
+        -c "$options" \
+        -c "$(vim_exec "$@")" \
+        -c "normal i|" \
+        -c "wq" "$file"
+}
+
+run_fakevim() {
+    local file=$1
+    shift
+    find_fakevim
+    "$FAKEVIM" "$file" \
+        ":$options|set nopasskeys|set nopasscontrolkey<CR>" \
+        "$@" "<ESC><ESC>i|<ESC>" \
+        ":wq<CR>"
+}
+
+find_fakevim() {
+    if [ ! -x "$FAKEVIM" ]; then
+        dir=$(dirname "$(readlink -f "$0")")
+        FAKEVIM=$(find "$dir" -type f -executable -name test | head -1)
+    fi
+}
+
+print_test() {
+    local header=$1
+    local file=$2
+    local footer=$3
+
+    print "$header" N
+    print_content "$file"
+    print "$footer" N
+}
+
+same() {
+    cmp "$@" >/dev/null 2>&1
+}
+
+main() {
+    set -e
+
+    if [ "$#" -lt 2 ]; then
+        print_help
+        exit 1
     fi
 
-    clean_up
+    local file=$1
+    shift # rest are commands
 
-    contents=$1
-    printf "%s" "$contents" > "$testfile"
-    shift
+    rm -f "$cmdfile"
+    #cp ~/.vimrc fakevimrc
 
-    print_status < "$testfile"
+    print_test 'data.setText(' "$file" ');'
 
-    i=0
-    {
-        echo ':set nocompatible'
-        echo ':%s/|//'
-        for cmd in "$@"; do
-            echo ":redir >> $logfile"
+    # run command through Vim
+    local vimoutfile=${file}.vim
+    cp "$file" "$vimoutfile"
+    run_vim "$vimoutfile" "$@"
 
-            echo ":normal $cmd"
-            #echo ":map Q $cmd"
-            #print_cmd 'Q<ESC><ESC>'
-            #read 2>&1 > /dev/null
+    print_test "KEYS(\"$*\"," "$vimoutfile" ');'
 
-            tmpfile="${testfile}.$((++i))"
-            echo ":w $tmpfile"
-            echo ":redir >> $tmpfile"
-            echo ":echo getpos('.')"
-            echo ":redir >>"
-        done
-        echo 'ZZ'
-    } | "$vim" "${vimopts[@]}" -s /dev/stdin "$testfile" &> /dev/null || exit 1
+    local fakevimoutfile=${file}.fakevim
+    cp "$file" "$fakevimoutfile"
+    run_fakevim "$fakevimoutfile" "$@"
 
-    i=0
-    for cmd in "$@"; do
-        tmpfile="${testfile}.$((++i))"
-        [ -f "$tmpfile" ] || exit 3
+    if same  "$fakevimoutfile" "$vimoutfile"; then
+        echo OK, same result from Vim and FakeVim.
+    else
+        echo FAILED, different result from Vim and FakeVim.
+        $diff "$fakevimoutfile" "$vimoutfile"
+    fi
 
-        cursor=$(tail -1 "$tmpfile")
-        print_cmd ':$-2,$d|call setpos(".", '"$cursor"')<CR>i|<ESC>ZZ' | "$vim" $vimopts -s /dev/stdin "$tmpfile" &> /dev/null || exit 4
-        head "$tmpfile" | print_status "$cmd<ESC><ESC>"
-    done
-
-    cat "$logfile"
-
-    clean_up
+    reset
+    cat "$cmdfile"
+    sed 's/^/    /' "$cmdfile" | xclip -i
 }
 
 main "$@"

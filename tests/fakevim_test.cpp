@@ -286,7 +286,7 @@ void FakeVimPlugin::setupTest(QString *title, FakeVimHandler **handler, QWidget 
     auto mainWindow = new QMainWindow;
     initMainWindow(mainWindow, *edit, *title);
 
-    connectSignals(*handler, mainWindow, *edit);
+    connectSignals(*handler, mainWindow, *edit, QString());
 
     initHandler(*handler);
 

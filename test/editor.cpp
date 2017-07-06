@@ -442,7 +442,9 @@ void clearUndoRedo(QWidget *editor)
     EDITOR(editor, setUndoRedoEnabled(true));
 }
 
-void connectSignals(FakeVimHandler *handler, QMainWindow *mainWindow, QWidget *editor)
+void connectSignals(
+        FakeVimHandler *handler, QMainWindow *mainWindow, QWidget *editor,
+        const QString &fileToEdit)
 {
     auto proxy = new Proxy(editor, mainWindow, handler);
 
@@ -465,6 +467,9 @@ void connectSignals(FakeVimHandler *handler, QMainWindow *mainWindow, QWidget *e
 
     QObject::connect(proxy, &Proxy::handleInput,
         handler, [handler] (const QString &text) { handler->handleInput(text); });
+
+    if (!fileToEdit.isEmpty())
+        proxy->openFile(fileToEdit);
 }
 
 #include "editor.moc"
