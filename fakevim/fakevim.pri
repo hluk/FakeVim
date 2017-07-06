@@ -1,7 +1,5 @@
 include($$PWD/utils/utils.pri)
 
-DEFINES += FAKEVIM_STANDALONE
-
 INCLUDEPATH += $$PWD
 
 SOURCES += $$PWD/fakevimhandler.cpp \

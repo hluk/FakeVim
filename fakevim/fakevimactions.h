@@ -25,9 +25,9 @@
 
 #pragma once
 
-#ifndef FAKEVIM_STANDALONE
-#   include <utils/savedaction.h>
-#endif
+/* Not used in standalone version of FakeVim.
+#include <utils/savedaction.h>
+*/
 
 #include <QCoreApplication>
 #include <QHash>
@@ -60,11 +60,10 @@ public:
     QString m_settingsKey;
 };
 
-#ifdef FAKEVIM_STANDALONE
 typedef DummyAction FakeVimAction;
-#else
+/* Not used in standalone version of FakeVim.
 typedef Utils::SavedAction FakeVimAction;
-#endif
+*/
 
 enum FakeVimSettingsCode
 {

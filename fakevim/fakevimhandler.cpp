@@ -2501,14 +2501,14 @@ EventResult FakeVimHandler::Private::handleEvent(QKeyEvent *ev)
         return EventPassedToCore;
     }
 
-#ifndef FAKEVIM_STANDALONE
+    /* Not used in standalone version of FakeVim.
     bool inSnippetMode = false;
     QMetaObject::invokeMethod(editor(),
         "inSnippetMode", Q_ARG(bool *, &inSnippetMode));
 
     if (inSnippetMode)
         return EventPassedToCore;
-#endif
+    */
 
     // Fake "End of line"
     //m_tc = m_cursor;
@@ -8595,10 +8595,10 @@ void FakeVimHandler::updateGlobalMarksFilenames(const QString &oldFileName, cons
 
 bool FakeVimHandler::eventFilter(QObject *ob, QEvent *ev)
 {
-#ifndef FAKEVIM_STANDALONE
+    /* Not used in standalone version of FakeVim.
     if (!theFakeVimSetting(ConfigUseFakeVim)->value().toBool())
         return QObject::eventFilter(ob, ev);
-#endif
+    */
 
     if (ev->type() == QEvent::Shortcut) {
         d->passShortcuts(false);

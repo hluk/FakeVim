@@ -81,12 +81,12 @@ FakeVimSettings::FakeVimSettings()
     // Specific FakeVim settings
     createAction(ConfigReadVimRc,  false,     "ReadVimRc");
     createAction(ConfigVimRcPath,  QString(), "VimRcPath");
-#ifndef FAKEVIM_STANDALONE
+    /* Not used in standalone version of FakeVim.
     createAction(ConfigUseFakeVim, false,     "UseFakeVim");
     item(ConfigUseFakeVim)->setText(tr("Use Vim-style Editing"));
     item(ConfigReadVimRc)->setText(tr("Read .vimrc"));
     item(ConfigVimRcPath)->setText(tr("Path to .vimrc"));
-#endif
+    */
     createAction(ConfigShowMarks,      false, "ShowMarks",      "sm");
     createAction(ConfigPassControlKey, false, "PassControlKey", "pck");
     createAction(ConfigPassKeys,       true,  "PassKeys",       "pk");
