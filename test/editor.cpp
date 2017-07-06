@@ -17,6 +17,7 @@
     along with CopyQ.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include "fakevimactions.h"
 #include "fakevimhandler.h"
 
 #include <QApplication>
@@ -282,7 +283,66 @@ public slots:
         *on = !m_blockSelection.isEmpty();
     }
 
+    void indentRegion(int beginBlock, int endBlock, QChar typedChar)
+    {
+        QTextEdit *ed = qobject_cast<QTextEdit *>(m_widget);
+        if (!ed)
+            return;
+
+        const auto indentSize = theFakeVimSetting(ConfigShiftWidth)->value().toInt();
+
+        QTextDocument *doc = ed->document();
+        QTextBlock startBlock = doc->findBlockByNumber(beginBlock);
+
+        // Record line lenghts for mark adjustments
+        QVector<int> lineLengths(endBlock - beginBlock + 1);
+        QTextBlock block = startBlock;
+
+        for (int i = beginBlock; i <= endBlock; ++i) {
+            const auto line = block.text();
+            lineLengths[i - beginBlock] = line.length();
+            if (typedChar.unicode() == 0 && line.simplified().isEmpty()) {
+                // clear empty lines
+                QTextCursor cursor(block);
+                while (!cursor.atBlockEnd())
+                    cursor.deleteChar();
+            } else {
+                const auto previousBlock = block.previous();
+                const auto previousLine = previousBlock.isValid() ? previousBlock.text() : QString();
+
+                int indent = firstNonSpace(previousLine);
+                if (typedChar == '}')
+                    indent = std::max(0, indent - indentSize);
+                else if ( previousLine.endsWith("{") )
+                    indent += indentSize;
+                const auto indentString = QString(" ").repeated(indent);
+
+                QTextCursor cursor(block);
+                cursor.beginEditBlock();
+                cursor.movePosition(QTextCursor::StartOfBlock);
+                cursor.movePosition(QTextCursor::NextCharacter, QTextCursor::KeepAnchor, firstNonSpace(line));
+                cursor.removeSelectedText();
+                cursor.insertText(indentString);
+                cursor.endEditBlock();
+            }
+            block = block.next();
+        }
+    }
+
+    void checkForElectricCharacter(bool *result, QChar c)
+    {
+        *result = c == '{' || c == '}';
+    }
+
 private:
+    static int firstNonSpace(const QString &text)
+    {
+        int indent = 0;
+        while ( indent < text.length() && text.at(indent) == ' ' )
+            ++indent;
+        return indent;
+    }
+
     void updateExtraSelections()
     {
         QTextEdit *ed = qobject_cast<QTextEdit *>(m_widget);
@@ -413,6 +473,7 @@ void initHandler(FakeVimHandler *handler)
     handler->handleCommand(_("set shiftwidth=8"));
     handler->handleCommand(_("set tabstop=16"));
     handler->handleCommand(_("set autoindent"));
+    handler->handleCommand(_("set smartindent"));
 
     // Try to source file "fakevimrc" from current directory.
     handler->handleCommand(_("source fakevimrc"));
@@ -464,6 +525,11 @@ void connectSignals(
         proxy, &Proxy::requestDisableBlockSelection);
     QObject::connect(handler, &FakeVimHandler::requestHasBlockSelection,
         proxy, &Proxy::requestHasBlockSelection);
+
+    QObject::connect(handler, &FakeVimHandler::indentRegion,
+        proxy, &Proxy::indentRegion);
+    QObject::connect(handler, &FakeVimHandler::checkForElectricCharacter,
+        proxy, &Proxy::checkForElectricCharacter);
 
     QObject::connect(proxy, &Proxy::handleInput,
         handler, [handler] (const QString &text) { handler->handleInput(text); });
