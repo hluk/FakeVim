@@ -1,10 +1,8 @@
-include(../fakevim/fakevim.pri)
+include(../example/editor.pri)
 
-SOURCES += \
-    fakevim_test.cpp \
-    ../test/editor.cpp
-
+SOURCES += fakevim_test.cpp
 HEADERS += fakevimplugin.h
 
 CONFIG += qt
+QT += widgets
 QT += testlib

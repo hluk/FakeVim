@@ -6,7 +6,7 @@ FakeVim is library to emulate Vim in QTextEdit, QPlainTextEdit and possibly othe
 Build
 -----
 
-To build the library and simple example editor (in `test` directory), run following commands.
+To build the library and simple example editor (in `example` directory), run following commands.
 
     qmake
     make
@@ -136,7 +136,7 @@ Implementation
 --------------
 
 There are appropriate signals emitted for command which has to be processed by the underlying editor widget (folds, windows, tabs, command line, messages etc.).
-See example in `test/` directory or implementation of FakeVim plugin in Qt Creator IDE.
+See example in `example/` directory or implementation of FakeVim plugin in Qt Creator IDE.
 
 Python Bindings
 ---------------

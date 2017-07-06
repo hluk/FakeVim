@@ -31,7 +31,7 @@
 #include "fakevimplugin.h"
 #include "fakevimhandler.h"
 
-#include "../test/editor.h"
+#include "../example/editor.h"
 
 #include <QMainWindow>
 #include <QtTest>

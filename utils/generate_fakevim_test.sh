@@ -1,6 +1,6 @@
 #!/bin/bash
 VIM=vim
-FAKEVIM=${FAKEVIM:-test/test}
+FAKEVIM=${FAKEVIM:-example/example}
 diff=meld
 cmdfile=fakevim_test_cmd.log
 INDENT=${INDENT:-'    '}
