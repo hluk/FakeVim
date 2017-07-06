@@ -475,9 +475,6 @@ void initHandler(FakeVimHandler *handler)
     handler->handleCommand(_("set autoindent"));
     handler->handleCommand(_("set smartindent"));
 
-    // Try to source file "fakevimrc" from current directory.
-    handler->handleCommand(_("source fakevimrc"));
-
     handler->installEventFilter();
     handler->setupWidget();
 }
