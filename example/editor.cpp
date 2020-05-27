@@ -504,29 +504,40 @@ void connectSignals(
         FakeVimHandler *handler, QMainWindow *mainWindow, QWidget *editor,
         const QString &fileToEdit)
 {
-    auto proxy = new Proxy(editor, mainWindow, handler);
+    Proxy *proxy = new Proxy(editor, mainWindow, handler);
 
-    QObject::connect(handler, &FakeVimHandler::commandBufferChanged,
-        proxy, &Proxy::changeStatusMessage);
-    QObject::connect(handler, &FakeVimHandler::extraInformationChanged,
-        proxy, &Proxy::changeExtraInformation);
-    QObject::connect(handler, &FakeVimHandler::statusDataChanged,
-        proxy, &Proxy::changeStatusData);
-    QObject::connect(handler, &FakeVimHandler::highlightMatches,
-        proxy, &Proxy::highlightMatches);
-    QObject::connect(handler, &FakeVimHandler::handleExCommandRequested,
-        proxy, &Proxy::handleExCommand);
-    QObject::connect(handler, &FakeVimHandler::requestSetBlockSelection,
-        proxy, &Proxy::requestSetBlockSelection);
-    QObject::connect(handler, &FakeVimHandler::requestDisableBlockSelection,
-        proxy, &Proxy::requestDisableBlockSelection);
-    QObject::connect(handler, &FakeVimHandler::requestHasBlockSelection,
-        proxy, &Proxy::requestHasBlockSelection);
+    handler->commandBufferChanged
+        .connect([proxy](const QString &contents, int cursorPos, int /*anchorPos*/, int /*messageLevel*/) {
+        proxy->changeStatusMessage(contents, cursorPos);
+    });
+    handler->extraInformationChanged.connect([proxy](const QString &text) {
+        proxy->changeExtraInformation(text);
+    });
+    handler->statusDataChanged.connect([proxy](const QString &text) {
+        proxy->changeStatusData(text);
+    });
+    handler->highlightMatches.connect([proxy](const QString &needle) {
+        proxy->highlightMatches(needle);
+    });
+    handler->handleExCommandRequested.connect([proxy](bool *handled, const ExCommand &cmd) {
+        proxy->handleExCommand(handled, cmd);
+    });
+    handler->requestSetBlockSelection.connect([proxy](const QTextCursor &cursor) {
+        proxy->requestSetBlockSelection(cursor);
+    });
+    handler->requestDisableBlockSelection.connect([proxy] {
+        proxy->requestDisableBlockSelection();
+    });
+    handler->requestHasBlockSelection.connect([proxy](bool *on) {
+        proxy->requestHasBlockSelection(on);
+    });
 
-    QObject::connect(handler, &FakeVimHandler::indentRegion,
-        proxy, &Proxy::indentRegion);
-    QObject::connect(handler, &FakeVimHandler::checkForElectricCharacter,
-        proxy, &Proxy::checkForElectricCharacter);
+    handler->indentRegion.connect([proxy](int beginBlock, int endBlock, QChar typedChar) {
+        proxy->indentRegion(beginBlock, endBlock, typedChar);
+    });
+    handler->checkForElectricCharacter.connect([proxy](bool *result, QChar c) {
+            proxy->checkForElectricCharacter(result, c);
+    });
 
     QObject::connect(proxy, &Proxy::handleInput,
         handler, [handler] (const QString &text) { handler->handleInput(text); });
