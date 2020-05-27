@@ -25,6 +25,8 @@
 
 #pragma once
 
+#define FAKEVIM_STANDALONE // Only diff with upstream, I hope
+
 #include <QObject>
 #include <QTextEdit>
 

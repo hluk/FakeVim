@@ -26,8 +26,6 @@ include(cmake/library.cmake)
 include(cmake/qt.cmake)
 include(cmake/pkg-config.cmake)
 
-add_definitions(-DFAKEVIM_STANDALONE)
-
 # Files with Q_OBJECT macros to pass to moc utility
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 qt5_wrap_cpp(${bin}_mocced "fakevim/fakevimhandler.h")
