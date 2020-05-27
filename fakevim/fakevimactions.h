@@ -25,11 +25,11 @@
 
 #pragma once
 
-/* Not used in standalone version of FakeVim.
-#include <utils/savedaction.h>
-*/
-
-#include "private/fakevim_export.h"
+#ifdef FAKEVIM_STANDALONE
+#   include "private/fakevim_export.h"
+#else
+#   include <utils/savedaction.h>
+#endif
 
 #include <QCoreApplication>
 #include <QHash>
@@ -62,10 +62,11 @@ public:
     QString m_settingsKey;
 };
 
-typedef DummyAction FakeVimAction;
-/* Not used in standalone version of FakeVim.
-typedef Utils::SavedAction FakeVimAction;
-*/
+#ifdef FAKEVIM_STANDALONE
+using FakeVimAction = DummyAction;
+#else
+using FakeVimAction = Utils::SavedAction;
+#endif
 
 enum FakeVimSettingsCode
 {
@@ -107,7 +108,9 @@ enum FakeVimSettingsCode
     ConfigClipboard,
     ConfigShowCmd,
     ConfigScrollOff,
-    ConfigRelativeNumber
+    ConfigRelativeNumber,
+
+    ConfigBlinkingCursor
 };
 
 class FakeVimSettings
