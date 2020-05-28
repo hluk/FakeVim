@@ -81,12 +81,12 @@ FakeVimSettings::FakeVimSettings()
     // Specific FakeVim settings
     createAction(ConfigReadVimRc,  false,     "ReadVimRc");
     createAction(ConfigVimRcPath,  QString(), "VimRcPath");
-    /* Not used in standalone version of FakeVim.
+#ifndef FAKEVIM_STANDALONE
     createAction(ConfigUseFakeVim, false,     "UseFakeVim");
     item(ConfigUseFakeVim)->setText(tr("Use Vim-style Editing"));
     item(ConfigReadVimRc)->setText(tr("Read .vimrc"));
     item(ConfigVimRcPath)->setText(tr("Path to .vimrc"));
-    */
+#endif
     createAction(ConfigShowMarks,      false, "ShowMarks",      "sm");
     createAction(ConfigPassControlKey, false, "PassControlKey", "pck");
     createAction(ConfigPassKeys,       true,  "PassKeys",       "pk");
@@ -108,6 +108,7 @@ FakeVimSettings::FakeVimSettings()
     createAction(ConfigTildeOp,        false, "TildeOp",        "top");
     createAction(ConfigShowCmd,        true,  "ShowCmd",        "sc");
     createAction(ConfigRelativeNumber, false, "RelativeNumber", "rnu");
+    createAction(ConfigBlinkingCursor, false, "BlinkingCursor", "bc");
     createAction(ConfigScrollOff,      0,     "ScrollOff",      "so");
     createAction(ConfigBackspace,      QString("indent,eol,start"), "ConfigBackspace", "bs");
     createAction(ConfigIsKeyword,      QString("@,48-57,_,192-255,a-z,A-Z"), "IsKeyword", "isk");
@@ -146,7 +147,7 @@ void FakeVimSettings::writeSettings(QSettings *settings)
 
 FakeVimAction *FakeVimSettings::item(int code)
 {
-    QTC_ASSERT(m_items.value(code, 0), qDebug() << "CODE: " << code; return 0);
+    QTC_ASSERT(m_items.value(code, 0), qDebug() << "CODE: " << code; return nullptr);
     return m_items.value(code, 0);
 }
 
@@ -176,7 +177,7 @@ void FakeVimSettings::createAction(int code, const QVariant &value,
                                    const QString &settingsKey,
                                    const QString &shortKey)
 {
-    FakeVimAction *item = new FakeVimAction(0);
+    FakeVimAction *item = new FakeVimAction(nullptr);
     item->setValue(value);
     item->setSettingsKey("FakeVim", settingsKey);
     item->setDefaultValue(value);
