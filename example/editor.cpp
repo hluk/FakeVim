@@ -99,7 +99,7 @@ class Proxy : public QObject
     Q_OBJECT
 
 public:
-    Proxy(QWidget *widget, QMainWindow *mw, QObject *parent = 0)
+    Proxy(QWidget *widget, QMainWindow *mw, QObject *parent)
       : QObject(parent), m_widget(widget), m_mainWindow(mw)
     {
     }
