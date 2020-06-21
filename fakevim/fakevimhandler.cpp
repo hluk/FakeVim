@@ -5101,7 +5101,7 @@ void FakeVimHandler::Private::handleInsertMode(const Input &input)
             const int ts = config(ConfigTabStop).toInt();
             const int col = logicalCursorColumn();
             QString str = QString(ts - col % ts, ' ');
-            insertText(str);
+            insertInInsertMode(str);
         } else {
             insertInInsertMode(input.raw());
         }
