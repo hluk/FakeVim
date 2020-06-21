@@ -121,18 +121,29 @@ public slots:
 
     void highlightMatches(const QString &pattern)
     {
-        QTextEdit *ed = qobject_cast<QTextEdit *>(m_widget);
-        if (!ed)
-            return;
+        QTextCursor cur;
+        QTextDocument *doc = nullptr;
 
-        QTextCursor cur = ed->textCursor();
+        { // in a block so we don't inadvertently use one of them later
+            QPlainTextEdit *plainEditor = qobject_cast<QPlainTextEdit *>(m_widget);
+            QTextEdit *editor = qobject_cast<QTextEdit *>(m_widget);
+            if (editor) {
+                cur = editor->textCursor();
+                doc = editor->document();
+            } else if (plainEditor) {
+                cur = plainEditor->textCursor();
+                doc = plainEditor->document();
+            } else {
+                return;
+            }
+        }
+        Q_ASSERT(doc);
 
         QTextEdit::ExtraSelection selection;
         selection.format.setBackground(Qt::yellow);
         selection.format.setForeground(Qt::black);
 
         // Highlight matches.
-        QTextDocument *doc = ed->document();
         QRegExp re(pattern);
         cur = doc->find(re);
 
@@ -202,11 +213,13 @@ public slots:
 
     void requestSetBlockSelection(const QTextCursor &tc)
     {
-        QTextEdit *ed = qobject_cast<QTextEdit *>(m_widget);
-        if (!ed)
+        QTextEdit *editor = qobject_cast<QTextEdit*>(m_widget);
+        QPlainTextEdit *plainEditor = qobject_cast<QPlainTextEdit*>(m_widget);
+        if (!editor && !plainEditor) {
             return;
+        }
 
-        QPalette pal = ed->parentWidget() != NULL ? ed->parentWidget()->palette()
+        QPalette pal = m_widget->parentWidget() != nullptr ? m_widget->parentWidget()->palette()
                                                   : QApplication::palette();
 
         m_blockSelection.clear();
@@ -235,47 +248,65 @@ public slots:
             m_blockSelection.append(selection);
         }
 
-        disconnect( ed, &QTextEdit::selectionChanged,
-                    this, &Proxy::updateBlockSelection );
-        ed->setTextCursor(tc);
-        connect( ed, &QTextEdit::selectionChanged,
-                 this, &Proxy::updateBlockSelection );
+        if (editor) {
+            disconnect(editor, &QTextEdit::selectionChanged,
+                        this, &Proxy::updateBlockSelection);
+            editor->setTextCursor(tc);
+            connect(editor, &QTextEdit::selectionChanged,
+                     this, &Proxy::updateBlockSelection);
+        } else {
+            disconnect(plainEditor, &QPlainTextEdit::selectionChanged,
+                        this, &Proxy::updateBlockSelection);
+            plainEditor->setTextCursor(tc);
+            connect(plainEditor, &QPlainTextEdit::selectionChanged,
+                     this, &Proxy::updateBlockSelection);
+        }
 
-        QPalette pal2 = ed->palette();
+
+        QPalette pal2 = m_widget->palette();
         pal2.setColor(QPalette::Highlight, Qt::transparent);
         pal2.setColor(QPalette::HighlightedText, Qt::transparent);
-        ed->setPalette(pal2);
+        m_widget->setPalette(pal2);
 
         updateExtraSelections();
     }
 
     void requestDisableBlockSelection()
     {
-        QTextEdit *ed = qobject_cast<QTextEdit *>(m_widget);
-        if (!ed)
+        QTextEdit *editor = qobject_cast<QTextEdit*>(m_widget);
+        QPlainTextEdit *plainEditor = qobject_cast<QPlainTextEdit*>(m_widget);
+        if (!editor && !plainEditor) {
             return;
+        }
 
-        QPalette pal = ed->parentWidget() != NULL ? ed->parentWidget()->palette()
+        QPalette pal = m_widget->parentWidget() != nullptr ? m_widget->parentWidget()->palette()
                                                   : QApplication::palette();
 
         m_blockSelection.clear();
         m_clearSelection.clear();
 
-        ed->setPalette(pal);
+        m_widget->setPalette(pal);
 
-        disconnect( ed, &QTextEdit::selectionChanged,
-                    this, &Proxy::updateBlockSelection );
+        if (editor) {
+            disconnect(editor, &QTextEdit::selectionChanged,
+                       this, &Proxy::updateBlockSelection);
+        } else {
+            disconnect(plainEditor, &QPlainTextEdit::selectionChanged,
+                       this, &Proxy::updateBlockSelection);
+        }
 
         updateExtraSelections();
     }
 
     void updateBlockSelection()
     {
-        QTextEdit *ed = qobject_cast<QTextEdit *>(m_widget);
-        if (!ed)
+        QTextEdit *editor = qobject_cast<QTextEdit*>(m_widget);
+        QPlainTextEdit *plainEditor = qobject_cast<QPlainTextEdit*>(m_widget);
+        if (!editor && !plainEditor) {
             return;
+        }
 
-        requestSetBlockSelection(ed->textCursor());
+        requestSetBlockSelection(editor ? editor->textCursor() : plainEditor->textCursor());
     }
 
     void requestHasBlockSelection(bool *on)
@@ -285,13 +316,22 @@ public slots:
 
     void indentRegion(int beginBlock, int endBlock, QChar typedChar)
     {
-        QTextEdit *ed = qobject_cast<QTextEdit *>(m_widget);
-        if (!ed)
-            return;
+        QTextDocument *doc = nullptr;
+        { // in a block so we don't inadvertently use one of them later
+            QPlainTextEdit *plainEditor = qobject_cast<QPlainTextEdit *>(m_widget);
+            QTextEdit *editor = qobject_cast<QTextEdit *>(m_widget);
+            if (editor) {
+                doc = editor->document();
+            } else if (plainEditor) {
+                doc = plainEditor->document();
+            } else {
+                return;
+            }
+        }
+        Q_ASSERT(doc);
 
-        const auto indentSize = theFakeVimSetting(ConfigShiftWidth)->value().toInt();
+        const int indentSize = theFakeVimSetting(ConfigShiftWidth)->value().toInt();
 
-        QTextDocument *doc = ed->document();
         QTextBlock startBlock = doc->findBlockByNumber(beginBlock);
 
         // Record line lenghts for mark adjustments
@@ -345,9 +385,13 @@ private:
 
     void updateExtraSelections()
     {
-        QTextEdit *ed = qobject_cast<QTextEdit *>(m_widget);
-        if (ed)
-            ed->setExtraSelections(m_clearSelection + m_searchSelection + m_blockSelection);
+        QTextEdit *editor = qobject_cast<QTextEdit*>(m_widget);
+        QPlainTextEdit *plainEditor = qobject_cast<QPlainTextEdit*>(m_widget);
+        if (editor) {
+            editor->setExtraSelections(m_clearSelection + m_searchSelection + m_blockSelection);
+        } else if (plainEditor) {
+            plainEditor->setExtraSelections(m_clearSelection + m_searchSelection + m_blockSelection);
+        }
     }
 
     bool wantSaveAndQuit(const ExCommand &cmd)
