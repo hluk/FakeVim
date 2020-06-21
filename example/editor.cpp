@@ -31,7 +31,6 @@
 #include <QTextEdit>
 #include <QTextStream>
 #include <QTemporaryFile>
-#include <QStandardPaths>
 
 #define EDITOR(editor, call) \
     if (QPlainTextEdit *ed = qobject_cast<QPlainTextEdit *>(editor)) { \

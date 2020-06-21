@@ -22,6 +22,8 @@
 
 #include <QApplication>
 #include <QMainWindow>
+#include <QStandardPaths>
+#include <QFile>
 
 int main(int argc, char *argv[])
 {
