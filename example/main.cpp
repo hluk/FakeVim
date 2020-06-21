@@ -49,6 +49,17 @@ int main(int argc, char *argv[])
     // Initialize FakeVimHandler.
     initHandler(&handler);
 
+    // Load vimrc if it exists
+    QString vimrc = QStandardPaths::writableLocation(QStandardPaths::HomeLocation)
+#ifdef Q_OS_WIN
+        + "/_vimrc";
+#else
+        + "/.vimrc";
+#endif
+    if (QFile::exists(vimrc)) {
+        handler.handleCommand("source " + vimrc);
+    }
+
     // Clear undo and redo queues.
     clearUndoRedo(editor);
 
