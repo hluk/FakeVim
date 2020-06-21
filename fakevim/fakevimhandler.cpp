@@ -587,7 +587,7 @@ static void searchBackward(QTextCursor *tc, QRegularExpression &needleExp, int *
     int i = m.capturedStart();
     while (i != -1 && i < tc->positionInBlock()) {
         --*repeat;
-        m = needleExp.match(line, i + qMax(1, m.capturedStart()));
+        m = needleExp.match(line, i + qMax(1, m.capturedLength()));
         i = m.capturedStart();
         if (i == line.size())
             i = -1;
@@ -605,7 +605,7 @@ static void searchBackward(QTextCursor *tc, QRegularExpression &needleExp, int *
         i = m.capturedStart();
         while (i != -1) {
             --*repeat;
-            m = needleExp.match(line, i + qMax(1, m.capturedStart()));
+            m = needleExp.match(line, i + qMax(1, m.capturedLength()));
             i = m.capturedStart();
             if (i == line.size())
                 i = -1;
@@ -620,7 +620,7 @@ static void searchBackward(QTextCursor *tc, QRegularExpression &needleExp, int *
     m = needleExp.match(line);
     i = m.capturedStart();
     while (*repeat < 0) {
-        m = needleExp.match(line, i + qMax(1, m.capturedStart()));
+        m = needleExp.match(line, i + qMax(1, m.capturedLength()));
         i = m.capturedStart();
         ++*repeat;
     }
