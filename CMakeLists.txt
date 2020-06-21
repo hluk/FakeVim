@@ -32,3 +32,10 @@ qt5_wrap_cpp(${bin}_mocced "fakevim/fakevimhandler.h")
 # Generate moc file with correct file name.
 qt5_generate_moc("fakevim/fakevimhandler.cpp" "fakevimhandler.moc")
 target_sources(${bin} PRIVATE ${${bin}_mocced} "fakevimhandler.moc")
+
+option(BUILD_TESTS "Build tests")
+if (BUILD_TESTS)
+    message(STATUS "Building tests")
+    add_subdirectory(tests)
+enable_testing()
+endif()
