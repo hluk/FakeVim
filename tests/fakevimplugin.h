@@ -27,6 +27,8 @@
 
 #include <QObject>
 
+class QMainWindow;
+
 namespace FakeVim {
 namespace Internal {
 
@@ -156,7 +158,7 @@ private slots:
 private:
     struct TestData;
     void setup(TestData *data);
-    void setupTest(QString *title, FakeVimHandler **handler, QWidget **edit);
+    void setupTest(QString *title, FakeVimHandler **handler, QWidget **edit, QMainWindow **mainWindow);
 };
 
 } // namespace Internal

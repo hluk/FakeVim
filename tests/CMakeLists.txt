@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8.8)
+cmake_minimum_required(VERSION 3.0)
 project(fakevim_tests)
 
 find_package(fakevim REQUIRED)
@@ -13,5 +13,9 @@ qt5_wrap_cpp(${bin}_mocced "fakevimplugin.h")
 qt5_generate_moc("../example/editor.cpp" "editor.moc")
 target_sources(${bin} PRIVATE ${${bin}_mocced} "editor.moc")
 
+target_include_directories(${bin} PRIVATE ../fakevim)
+
 target_link_libraries(${bin} fakevim)
 target_link_libraries(${bin} Qt5::Widgets Qt5::Test)
+add_test(${bin} ${bin})
+enable_testing()

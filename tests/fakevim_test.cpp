@@ -182,10 +182,17 @@ struct FakeVimPlugin::TestData
 {
     FakeVimHandler *handler;
     QWidget *edit;
+    QMainWindow *mainWindow;
     QString title;
 
     int oldPosition;
     QByteArray oldText;
+
+    ~TestData() {
+        edit->deleteLater();
+        handler->deleteLater();
+        mainWindow->deleteLater();
+    }
 
     TextEditorWidget *editor() const { return qobject_cast<TextEditorWidget *>(edit); }
 
@@ -260,7 +267,7 @@ struct FakeVimPlugin::TestData
     int lines() const
     {
         QTextDocument *doc = editor()->document();
-        Q_ASSERT(doc != 0);
+        Q_ASSERT(doc != nullptr);
         return doc->lineCount();
     }
 
@@ -273,7 +280,7 @@ struct FakeVimPlugin::TestData
 
 void FakeVimPlugin::setup(TestData *data)
 {
-    setupTest(&data->title, &data->handler, &data->edit);
+    setupTest(&data->title, &data->handler, &data->edit, &data->mainWindow);
     data->reset();
     data->doCommand("| set nopasskeys"
                     "| set nopasscontrolkey"
@@ -281,17 +288,17 @@ void FakeVimPlugin::setup(TestData *data)
                     "| set autoindent");
 }
 
-void FakeVimPlugin::setupTest(QString *title, FakeVimHandler **handler, QWidget **edit)
+void FakeVimPlugin::setupTest(QString *title, FakeVimHandler **handler, QWidget **edit, QMainWindow **mainWindow)
 {
     const bool usePlainTextEdit = false;
 
     *edit = createEditorWidget(usePlainTextEdit);
     *handler = new FakeVimHandler(*edit, nullptr);
 
-    auto mainWindow = new QMainWindow;
-    initMainWindow(mainWindow, *edit, *title);
+    *mainWindow = new QMainWindow;
+    initMainWindow(*mainWindow, *edit, *title);
 
-    connectSignals(*handler, mainWindow, *edit, QString());
+    connectSignals(*handler, *mainWindow, *edit, QString());
 
     initHandler(*handler);
 
