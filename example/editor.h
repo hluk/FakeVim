@@ -19,15 +19,21 @@
 
 #pragma once
 
+#include <QObject>
+#include <QTextEdit>
+
 namespace FakeVim {
 namespace Internal {
 class FakeVimHandler;
+struct ExCommand;
 }
 }
 
 class QMainWindow;
 class QString;
 class QWidget;
+class QTextCursor;
+class QTextDocument;
 
 QWidget *createEditorWidget(bool usePlainTextEdit);
 void initHandler(FakeVim::Internal::FakeVimHandler *handler);
@@ -36,3 +42,55 @@ void clearUndoRedo(QWidget *editor);
 void connectSignals(
         FakeVim::Internal::FakeVimHandler *handler, QMainWindow *mainWindow,
         QWidget *editor, const QString &fileToEdit);
+
+
+class Proxy : public QObject
+{
+    Q_OBJECT
+
+public:
+    Proxy(QWidget *widget, QMainWindow *mw, QObject *parent);
+    void openFile(const QString &fileName);
+
+signals:
+    void handleInput(const QString &keys);
+
+public slots:
+    void changeStatusData(const QString &info);
+    void highlightMatches(const QString &pattern);
+    void changeStatusMessage(const QString &contents, int cursorPos);
+    void changeExtraInformation(const QString &info);
+    void updateStatusBar();
+    void handleExCommand(bool *handled, const FakeVim::Internal::ExCommand &cmd);
+    void requestSetBlockSelection(const QTextCursor &tc);
+    void requestDisableBlockSelection();
+    void updateBlockSelection();
+    void requestHasBlockSelection(bool *on);
+    void indentRegion(int beginBlock, int endBlock, QChar typedChar);
+    void checkForElectricCharacter(bool *result, QChar c);
+
+private:
+    static int firstNonSpace(const QString &text);
+
+    void updateExtraSelections();
+    bool wantSaveAndQuit(const FakeVim::Internal::ExCommand &cmd);
+    bool wantSave(const FakeVim::Internal::ExCommand &cmd);
+    bool wantQuit(const FakeVim::Internal::ExCommand &cmd);
+    bool save();
+    void cancel();
+    void invalidate();
+    bool hasChanges();
+
+    QTextDocument *document() const;
+    QString content() const;
+
+    QWidget *m_widget;
+    QMainWindow *m_mainWindow;
+    QString m_statusMessage;
+    QString m_statusData;
+    QString m_fileName;
+
+    QList<QTextEdit::ExtraSelection> m_searchSelection;
+    QList<QTextEdit::ExtraSelection> m_clearSelection;
+    QList<QTextEdit::ExtraSelection> m_blockSelection;
+};
