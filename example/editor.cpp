@@ -54,7 +54,7 @@ template <typename TextEdit>
 class Editor : public TextEdit
 {
 public:
-    Editor(QWidget *parent = 0) : TextEdit(parent)
+    explicit Editor(QWidget *parent = nullptr) : TextEdit(parent)
     {
         TextEdit::setCursorWidth(0);
     }
@@ -98,7 +98,7 @@ private:
 
 QWidget *createEditorWidget(bool usePlainTextEdit)
 {
-    QWidget *editor = 0;
+    QWidget *editor = nullptr;
     if (usePlainTextEdit) {
         Editor<QPlainTextEdit> *w = new Editor<QPlainTextEdit>;
         w->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
@@ -164,7 +164,7 @@ void clearUndoRedo(QWidget *editor)
     EDITOR(editor, setUndoRedoEnabled(true));
 }
 
-void connectSignals(
+Proxy *connectSignals(
         FakeVimHandler *handler, QMainWindow *mainWindow, QWidget *editor,
         const QString &fileToEdit)
 {
@@ -206,8 +206,25 @@ void connectSignals(
     QObject::connect(proxy, &Proxy::handleInput,
         handler, [handler] (const QString &text) { handler->handleInput(text); });
 
-    if (!fileToEdit.isEmpty())
+    QString fileName = fileToEdit;
+    QObject::connect(proxy, &Proxy::requestSave, proxy, [proxy, fileName] () {
+        proxy->save(fileName);
+    });
+
+    QObject::connect(proxy, &Proxy::requestSaveAndQuit, proxy, [proxy, fileName] () {
+        if (proxy->save(fileName)) {
+            proxy->cancel(fileName);
+        }
+    });
+    QObject::connect(proxy, &Proxy::requestQuit, proxy, [proxy, fileName] () {
+        proxy->cancel(fileName);
+    });
+
+    if (!fileToEdit.isEmpty()) {
         proxy->openFile(fileToEdit);
+    }
+
+    return proxy;
 }
 
 Proxy::Proxy(QWidget *widget, QMainWindow *mw, QObject *parent)
@@ -218,7 +235,6 @@ Proxy::Proxy(QWidget *widget, QMainWindow *mw, QObject *parent)
 void Proxy::openFile(const QString &fileName)
 {
     emit handleInput(QString(_(":r %1<CR>")).arg(fileName));
-    m_fileName = fileName;
 }
 
 void Proxy::changeStatusData(const QString &info)
@@ -229,17 +245,14 @@ void Proxy::changeStatusData(const QString &info)
 
 void Proxy::highlightMatches(const QString &pattern)
 {
-    QTextCursor cur;
     QTextDocument *doc = nullptr;
 
     { // in a block so we don't inadvertently use one of them later
         QPlainTextEdit *plainEditor = qobject_cast<QPlainTextEdit *>(m_widget);
         QTextEdit *editor = qobject_cast<QTextEdit *>(m_widget);
         if (editor) {
-            cur = editor->textCursor();
             doc = editor->document();
         } else if (plainEditor) {
-            cur = plainEditor->textCursor();
             doc = plainEditor->document();
         } else {
             return;
@@ -253,7 +266,7 @@ void Proxy::highlightMatches(const QString &pattern)
 
     // Highlight matches.
     QRegExp re(pattern);
-    cur = doc->find(re);
+    QTextCursor cur = doc->find(re);
 
     m_searchSelection.clear();
 
@@ -301,16 +314,15 @@ void Proxy::updateStatusBar()
 void Proxy::handleExCommand(bool *handled, const ExCommand &cmd)
 {
     if ( wantSaveAndQuit(cmd) ) {
-        // :wq
-        if (save())
-            cancel();
+        emit requestSaveAndQuit(); // :wq
     } else if ( wantSave(cmd) ) {
-        save(); // :w
+        emit requestSave(); // :w
     } else if ( wantQuit(cmd) ) {
-        if (cmd.hasBang)
+        if (cmd.hasBang) {
             invalidate(); // :q!
-        else
-            cancel(); // :q
+        } else {
+            emit requestQuit();
+        }
     } else {
         *handled = false;
         return;
@@ -516,9 +528,9 @@ bool Proxy::wantQuit(const ExCommand &cmd)
     return cmd.matches("q", "quit") || cmd.matches("qa", "qall");
 }
 
-bool Proxy::save()
+bool Proxy::save(const QString &fileName)
 {
-    if (!hasChanges())
+    if (!hasChanges(fileName))
         return true;
 
     QTemporaryFile tmpFile;
@@ -532,21 +544,21 @@ bool Proxy::save()
     ts << content();
     ts.flush();
 
-    QFile::remove(m_fileName);
-    if (!QFile::copy(tmpFile.fileName(), m_fileName)) {
+    QFile::remove(fileName);
+    if (!QFile::copy(tmpFile.fileName(), fileName)) {
         QMessageBox::critical(m_widget, tr("FakeVim Error"),
-                              tr("Cannot write to file \"%1\"").arg(m_fileName));
+                              tr("Cannot write to file \"%1\"").arg(fileName));
         return false;
     }
 
     return true;
 }
 
-void Proxy::cancel()
+void Proxy::cancel(const QString &fileName)
 {
-    if (hasChanges()) {
+    if (hasChanges(fileName)) {
         QMessageBox::critical(m_widget, tr("FakeVim Warning"),
-                              tr("File \"%1\" was changed").arg(m_fileName));
+                              tr("File \"%1\" was changed").arg(fileName));
     } else {
         invalidate();
     }
@@ -557,12 +569,12 @@ void Proxy::invalidate()
     QApplication::quit();
 }
 
-bool Proxy::hasChanges()
+bool Proxy::hasChanges(const QString &fileName)
 {
-    if (m_fileName.isEmpty() && content().isEmpty())
+    if (fileName.isEmpty() && content().isEmpty())
         return false;
 
-    QFile f(m_fileName);
+    QFile f(fileName);
     if (!f.open(QIODevice::ReadOnly))
         return true;
 

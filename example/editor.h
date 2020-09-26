@@ -22,38 +22,46 @@
 #include <QObject>
 #include <QTextEdit>
 
+class QMainWindow;
+class QTextDocument;
+class QString;
+class QWidget;
+class QTextCursor;
+
+class Proxy;
+
 namespace FakeVim {
 namespace Internal {
 class FakeVimHandler;
 struct ExCommand;
-}
-}
-
-class QMainWindow;
-class QString;
-class QWidget;
-class QTextCursor;
-class QTextDocument;
+} // namespace Internal
+} // namespace FakeVim
 
 QWidget *createEditorWidget(bool usePlainTextEdit);
 void initHandler(FakeVim::Internal::FakeVimHandler *handler);
 void initMainWindow(QMainWindow *mainWindow, QWidget *centralWidget, const QString &title);
 void clearUndoRedo(QWidget *editor);
-void connectSignals(
+Proxy *connectSignals(
         FakeVim::Internal::FakeVimHandler *handler, QMainWindow *mainWindow,
         QWidget *editor, const QString &fileToEdit);
-
 
 class Proxy : public QObject
 {
     Q_OBJECT
 
 public:
-    Proxy(QWidget *widget, QMainWindow *mw, QObject *parent);
+    explicit Proxy(QWidget *widget, QMainWindow *mw, QObject *parent = nullptr);
     void openFile(const QString &fileName);
+
+    bool save(const QString &fileName);
+    void cancel(const QString &fileName);
 
 signals:
     void handleInput(const QString &keys);
+    void requestSave();
+    void requestSaveAndQuit();
+    void requestQuit();
+    void requestRun();
 
 public slots:
     void changeStatusData(const QString &info);
@@ -76,10 +84,8 @@ private:
     bool wantSaveAndQuit(const FakeVim::Internal::ExCommand &cmd);
     bool wantSave(const FakeVim::Internal::ExCommand &cmd);
     bool wantQuit(const FakeVim::Internal::ExCommand &cmd);
-    bool save();
-    void cancel();
     void invalidate();
-    bool hasChanges();
+    bool hasChanges(const QString &fileName);
 
     QTextDocument *document() const;
     QString content() const;
@@ -88,7 +94,6 @@ private:
     QMainWindow *m_mainWindow;
     QString m_statusMessage;
     QString m_statusData;
-    QString m_fileName;
 
     QList<QTextEdit::ExtraSelection> m_searchSelection;
     QList<QTextEdit::ExtraSelection> m_clearSelection;
