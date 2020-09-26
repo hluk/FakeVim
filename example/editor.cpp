@@ -321,8 +321,10 @@ void Proxy::handleExCommand(bool *handled, const ExCommand &cmd)
         if (cmd.hasBang) {
             invalidate(); // :q!
         } else {
-            emit requestQuit();
+            emit requestQuit(); // :q
         }
+    } else if ( wantRun(cmd) ) {
+        emit requestRun();
     } else {
         *handled = false;
         return;
@@ -526,6 +528,11 @@ bool Proxy::wantSave(const ExCommand &cmd)
 bool Proxy::wantQuit(const ExCommand &cmd)
 {
     return cmd.matches("q", "quit") || cmd.matches("qa", "qall");
+}
+
+bool Proxy::wantRun(const ExCommand &cmd)
+{
+    return cmd.matches("r", "run") || cmd.matches("m", "make");
 }
 
 bool Proxy::save(const QString &fileName)

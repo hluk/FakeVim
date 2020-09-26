@@ -84,6 +84,8 @@ private:
     bool wantSaveAndQuit(const FakeVim::Internal::ExCommand &cmd);
     bool wantSave(const FakeVim::Internal::ExCommand &cmd);
     bool wantQuit(const FakeVim::Internal::ExCommand &cmd);
+    bool wantRun(const FakeVim::Internal::ExCommand &cmd);
+
     void invalidate();
     bool hasChanges(const QString &fileName);
 
