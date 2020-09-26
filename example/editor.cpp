@@ -210,8 +210,6 @@ void connectSignals(
         proxy->openFile(fileToEdit);
 }
 
-#include "editor.moc"
-
 Proxy::Proxy(QWidget *widget, QMainWindow *mw, QObject *parent)
     : QObject(parent), m_widget(widget), m_mainWindow(mw)
 {
