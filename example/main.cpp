@@ -46,7 +46,28 @@ int main(int argc, char *argv[])
     initMainWindow(&mainWindow, editor, usePlainTextEdit ? "QPlainTextEdit" : "QTextEdit");
 
     // Connect slots to FakeVimHandler signals.
-    connectSignals(&handler, &mainWindow, editor, fileToEdit);
+    Proxy *proxy = connectSignals(&handler, &mainWindow, editor);
+
+    QObject::connect(proxy, &Proxy::handleInput,
+        handler, [handler] (const QString &text) { handler->handleInput(text); });
+
+    QString fileName = fileToEdit;
+    QObject::connect(proxy, &Proxy::requestSave, proxy, [proxy, fileName] () {
+        proxy->save(fileName);
+    });
+
+    QObject::connect(proxy, &Proxy::requestSaveAndQuit, proxy, [proxy, fileName] () {
+        if (proxy->save(fileName)) {
+            proxy->cancel(fileName);
+        }
+    });
+    QObject::connect(proxy, &Proxy::requestQuit, proxy, [proxy, fileName] () {
+        proxy->cancel(fileName);
+    });
+
+    if (!fileToEdit.isEmpty()) {
+        proxy->openFile(fileToEdit);
+    }
 
     // Initialize FakeVimHandler.
     initHandler(&handler);

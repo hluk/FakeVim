@@ -164,9 +164,7 @@ void clearUndoRedo(QWidget *editor)
     EDITOR(editor, setUndoRedoEnabled(true));
 }
 
-Proxy *connectSignals(
-        FakeVimHandler *handler, QMainWindow *mainWindow, QWidget *editor,
-        const QString &fileToEdit)
+Proxy *connectSignals(FakeVimHandler *handler, QMainWindow *mainWindow, QWidget *editor)
 {
     Proxy *proxy = new Proxy(editor, mainWindow, handler);
 
@@ -202,27 +200,6 @@ Proxy *connectSignals(
     handler->checkForElectricCharacter.connect([proxy](bool *result, QChar c) {
             proxy->checkForElectricCharacter(result, c);
     });
-
-    QObject::connect(proxy, &Proxy::handleInput,
-        handler, [handler] (const QString &text) { handler->handleInput(text); });
-
-    QString fileName = fileToEdit;
-    QObject::connect(proxy, &Proxy::requestSave, proxy, [proxy, fileName] () {
-        proxy->save(fileName);
-    });
-
-    QObject::connect(proxy, &Proxy::requestSaveAndQuit, proxy, [proxy, fileName] () {
-        if (proxy->save(fileName)) {
-            proxy->cancel(fileName);
-        }
-    });
-    QObject::connect(proxy, &Proxy::requestQuit, proxy, [proxy, fileName] () {
-        proxy->cancel(fileName);
-    });
-
-    if (!fileToEdit.isEmpty()) {
-        proxy->openFile(fileToEdit);
-    }
 
     return proxy;
 }
