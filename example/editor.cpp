@@ -17,8 +17,9 @@
     along with CopyQ.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "fakevimactions.h"
-#include "fakevimhandler.h"
+#include "editor.h"
+#include <fakevim/fakevimactions.h>
+#include <fakevim/fakevimhandler.h>
 
 #include <QApplication>
 #include <QFontMetrics>

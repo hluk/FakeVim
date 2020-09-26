@@ -18,7 +18,7 @@
 */
 
 #include "editor.h"
-#include "fakevimhandler.h"
+#include <fakevim/fakevimhandler.h>
 
 #include <QApplication>
 #include <QMainWindow>
