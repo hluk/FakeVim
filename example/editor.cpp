@@ -32,6 +32,8 @@
 #include <QTextEdit>
 #include <QTextStream>
 #include <QTemporaryFile>
+#include <QStandardPaths>
+#include <QDebug>
 
 #define EDITOR(editor, call) \
     if (QPlainTextEdit *ed = qobject_cast<QPlainTextEdit *>(editor)) { \
@@ -117,12 +119,25 @@ void initHandler(FakeVimHandler *handler)
     handler->handleCommand(_("set nopasskeys"));
     handler->handleCommand(_("set nopasscontrolkey"));
 
-    // Set some Vim options.
-    handler->handleCommand(_("set expandtab"));
-    handler->handleCommand(_("set shiftwidth=8"));
-    handler->handleCommand(_("set tabstop=16"));
-    handler->handleCommand(_("set autoindent"));
-    handler->handleCommand(_("set smartindent"));
+
+    QString vimrc = QStandardPaths::writableLocation(QStandardPaths::HomeLocation)
+#ifdef Q_OS_WIN
+        + "/_vimrc";
+#else
+        + "/.vimrc";
+#endif
+
+    if (QFile::exists(vimrc)) {
+        qDebug() << "Loading vimrc";
+        handler->handleCommand("source " + vimrc);
+    } else {
+        // Set some Vim options.
+        handler->handleCommand(_("set expandtab"));
+        handler->handleCommand(_("set shiftwidth=8"));
+        handler->handleCommand(_("set tabstop=16"));
+        handler->handleCommand(_("set autoindent"));
+        handler->handleCommand(_("set smartindent"));
+    }
 
     handler->installEventFilter();
     handler->setupWidget();
