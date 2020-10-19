@@ -81,6 +81,13 @@ int main(int argc, char *argv[])
 #endif
     if (QFile::exists(vimrc)) {
         handler.handleCommand("source " + vimrc);
+    } else {
+        // Set some Vim options.
+        handler->handleCommand(_("set expandtab"));
+        handler->handleCommand(_("set shiftwidth=8"));
+        handler->handleCommand(_("set tabstop=16"));
+        handler->handleCommand(_("set autoindent"));
+        handler->handleCommand(_("set smartindent"));
     }
 
     // Clear undo and redo queues.
