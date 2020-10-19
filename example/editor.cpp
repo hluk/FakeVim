@@ -489,7 +489,7 @@ bool Proxy::wantQuit(const ExCommand &cmd)
 
 bool Proxy::wantRun(const ExCommand &cmd)
 {
-    return cmd.matches("r", "run") || cmd.matches("m", "make");
+    return cmd.matches("run", "run") || cmd.matches("make", "make");
 }
 
 bool Proxy::save(const QString &fileName)
