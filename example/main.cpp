@@ -65,10 +65,6 @@ int main(int argc, char *argv[])
         proxy->cancel(fileName);
     });
 
-    if (!fileToEdit.isEmpty()) {
-        proxy->openFile(fileToEdit);
-    }
-
     // Initialize FakeVimHandler.
     initHandler(&handler);
 
@@ -92,6 +88,10 @@ int main(int argc, char *argv[])
 
     // Clear undo and redo queues.
     clearUndoRedo(editor);
+
+    if (!fileToEdit.isEmpty()) {
+        proxy->openFile(fileToEdit);
+    }
 
     if (args.size() > 2) {
         for (const QString &cmd : args.mid(2))
