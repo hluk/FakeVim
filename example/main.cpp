@@ -71,19 +71,19 @@ int main(int argc, char *argv[])
     // Load vimrc if it exists
     QString vimrc = QStandardPaths::writableLocation(QStandardPaths::HomeLocation)
 #ifdef Q_OS_WIN
-        + "/_vimrc";
+        + QLatin1String("/_vimrc");
 #else
-        + "/.vimrc";
+        + QLatin1String("/.vimrc");
 #endif
     if (QFile::exists(vimrc)) {
-        handler.handleCommand("source " + vimrc);
+        handler.handleCommand(QLatin1String("source ") + vimrc);
     } else {
         // Set some Vim options.
-        handler.handleCommand("set expandtab");
-        handler.handleCommand("set shiftwidth=8");
-        handler.handleCommand("set tabstop=16");
-        handler.handleCommand("set autoindent");
-        handler.handleCommand("set smartindent");
+        handler.handleCommand(QLatin1String("set expandtab"));
+        handler.handleCommand(QLatin1String("set shiftwidth=8"));
+        handler.handleCommand(QLatin1String("set tabstop=16"));
+        handler.handleCommand(QLatin1String("set autoindent"));
+        handler.handleCommand(QLatin1String("set smartindent"));
     }
 
     // Clear undo and redo queues.
