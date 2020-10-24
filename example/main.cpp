@@ -49,7 +49,7 @@ int main(int argc, char *argv[])
     Proxy *proxy = connectSignals(&handler, &mainWindow, editor);
 
     QObject::connect(proxy, &Proxy::handleInput,
-        handler, [handler] (const QString &text) { handler->handleInput(text); });
+        &handler, [&handler] (const QString &text) { handler.handleInput(text); });
 
     QString fileName = fileToEdit;
     QObject::connect(proxy, &Proxy::requestSave, proxy, [proxy, fileName] () {
@@ -83,11 +83,11 @@ int main(int argc, char *argv[])
         handler.handleCommand("source " + vimrc);
     } else {
         // Set some Vim options.
-        handler->handleCommand(_("set expandtab"));
-        handler->handleCommand(_("set shiftwidth=8"));
-        handler->handleCommand(_("set tabstop=16"));
-        handler->handleCommand(_("set autoindent"));
-        handler->handleCommand(_("set smartindent"));
+        handler.handleCommand("set expandtab");
+        handler.handleCommand("set shiftwidth=8");
+        handler.handleCommand("set tabstop=16");
+        handler.handleCommand("set autoindent");
+        handler.handleCommand("set smartindent");
     }
 
     // Clear undo and redo queues.
