@@ -18,7 +18,7 @@
 */
 
 #include "editor.h"
-#include "fakevimhandler.h"
+#include <fakevim/fakevimhandler.h>
 
 #include <QApplication>
 #include <QMainWindow>
@@ -46,7 +46,24 @@ int main(int argc, char *argv[])
     initMainWindow(&mainWindow, editor, usePlainTextEdit ? "QPlainTextEdit" : "QTextEdit");
 
     // Connect slots to FakeVimHandler signals.
-    connectSignals(&handler, &mainWindow, editor, fileToEdit);
+    Proxy *proxy = connectSignals(&handler, &mainWindow, editor);
+
+    QObject::connect(proxy, &Proxy::handleInput,
+        &handler, [&handler] (const QString &text) { handler.handleInput(text); });
+
+    QString fileName = fileToEdit;
+    QObject::connect(proxy, &Proxy::requestSave, proxy, [proxy, fileName] () {
+        proxy->save(fileName);
+    });
+
+    QObject::connect(proxy, &Proxy::requestSaveAndQuit, proxy, [proxy, fileName] () {
+        if (proxy->save(fileName)) {
+            proxy->cancel(fileName);
+        }
+    });
+    QObject::connect(proxy, &Proxy::requestQuit, proxy, [proxy, fileName] () {
+        proxy->cancel(fileName);
+    });
 
     // Initialize FakeVimHandler.
     initHandler(&handler);
@@ -54,16 +71,27 @@ int main(int argc, char *argv[])
     // Load vimrc if it exists
     QString vimrc = QStandardPaths::writableLocation(QStandardPaths::HomeLocation)
 #ifdef Q_OS_WIN
-        + "/_vimrc";
+        + QLatin1String("/_vimrc");
 #else
-        + "/.vimrc";
+        + QLatin1String("/.vimrc");
 #endif
     if (QFile::exists(vimrc)) {
-        handler.handleCommand("source " + vimrc);
+        handler.handleCommand(QLatin1String("source ") + vimrc);
+    } else {
+        // Set some Vim options.
+        handler.handleCommand(QLatin1String("set expandtab"));
+        handler.handleCommand(QLatin1String("set shiftwidth=8"));
+        handler.handleCommand(QLatin1String("set tabstop=16"));
+        handler.handleCommand(QLatin1String("set autoindent"));
+        handler.handleCommand(QLatin1String("set smartindent"));
     }
 
     // Clear undo and redo queues.
     clearUndoRedo(editor);
+
+    if (!fileToEdit.isEmpty()) {
+        proxy->openFile(fileToEdit);
+    }
 
     if (args.size() > 2) {
         for (const QString &cmd : args.mid(2))

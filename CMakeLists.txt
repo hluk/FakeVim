@@ -36,6 +36,33 @@ target_sources(${bin} PRIVATE ${${bin}_mocced} "fakevimhandler.moc")
 option(BUILD_TESTS "Build tests")
 if (BUILD_TESTS)
     message(STATUS "Building tests")
-    add_subdirectory(tests)
-enable_testing()
+
+    find_package(Qt5Test REQUIRED)
+
+    add_executable(fakevim_test
+        tests/fakevim_test.cpp
+        tests/fakevimplugin.h
+        example/editor.cpp
+    )
+    set_property(TARGET fakevim_test PROPERTY AUTOMOC ON)
+    target_link_libraries(fakevim_test fakevim Qt5::Widgets Qt5::Test)
+
+    target_include_directories(fakevim_test PRIVATE
+        ${CMAKE_SOURCE_DIR}/fakevim
+        ${CMAKE_SOURCE_DIR}
+        )
+
+    add_test(fakevim_test fakevim_test)
+    enable_testing()
+endif()
+
+option(BUILD_EXAMPLE "Build example")
+if (BUILD_EXAMPLE)
+    message(STATUS "Building example")
+
+    add_executable(fakevim_example example/main.cpp example/editor.cpp)
+    set_property(TARGET fakevim_example PROPERTY AUTOMOC ON)
+
+    target_link_libraries(fakevim_example fakevim)
+    target_link_libraries(fakevim_example Qt5::Widgets)
 endif()
