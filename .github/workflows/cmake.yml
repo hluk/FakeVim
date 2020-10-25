@@ -1,0 +1,52 @@
+name: CMake
+
+on: [push]
+
+env:
+  BUILD_TYPE: Release
+
+jobs:
+  build:
+    runs-on: ubuntu-20.04
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Install dependencies
+      run: >-
+        sudo apt-get install
+        libqt5test5
+        libqt5widgets5
+        openbox
+        qtbase5-dev
+        xvfb
+
+    - name: Create Build Environment
+      run: cmake -E make_directory ${{runner.workspace}}/build
+
+    - name: Configure CMake
+      shell: bash
+      working-directory: ${{runner.workspace}}/build
+      run: >-
+        cmake $GITHUB_WORKSPACE
+        -DCMAKE_BUILD_TYPE=$BUILD_TYPE
+        -DBUILD_TESTS=TRUE
+        -DBUILD_EXAMPLE=TRUE
+
+    - name: Build
+      working-directory: ${{runner.workspace}}/build
+      shell: bash
+      run: cmake --build . --config $BUILD_TYPE
+
+    - name: Test
+      working-directory: ${{runner.workspace}}/build
+      shell: bash
+      run: |
+        # Start X11 and window manager.
+        export DISPLAY=':99.0'
+        Xvfb :99 -screen 0 800x600x24 &
+        sleep 5
+        openbox &
+        sleep 8
+
+        ctest -C $BUILD_TYPE
