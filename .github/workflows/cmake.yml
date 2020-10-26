@@ -17,7 +17,10 @@ jobs:
         sudo apt-get install
         libqt5test5
         libqt5widgets5
+        ninja-build
         openbox
+        pyqt5-dev
+        python3-pyqt5
         qtbase5-dev
         xvfb
 
@@ -29,6 +32,7 @@ jobs:
       working-directory: ${{runner.workspace}}/build
       run: >-
         cmake $GITHUB_WORKSPACE
+        -G Ninja
         -DCMAKE_BUILD_TYPE=$BUILD_TYPE
         -DBUILD_TESTS=TRUE
         -DBUILD_EXAMPLE=TRUE
@@ -41,12 +45,37 @@ jobs:
     - name: Test
       working-directory: ${{runner.workspace}}/build
       shell: bash
+      env:
+        DISPLAY: ":99"
       run: |
+        set -ex
+
         # Start X11 and window manager.
-        export DISPLAY=':99.0'
-        Xvfb :99 -screen 0 800x600x24 &
-        sleep 5
-        openbox &
-        sleep 8
+        Xvfb $DISPLAY -screen 0 800x600x24 & sleep 5
+        openbox & sleep 8
 
         ctest -C $BUILD_TYPE
+
+    - name: Build Python Library
+      working-directory: ${{github.workspace}}/python
+      shell: bash
+      env:
+        LIBRARY_PATH: ${{runner.workspace}}/build
+      run: ./build.sh
+
+    - name: Test Python Library
+      working-directory: ${{github.workspace}}/python
+      shell: bash
+      env:
+        DISPLAY: ":99"
+        LD_LIBRARY_PATH: ${{runner.workspace}}/build
+        PYTHONPATH: ${{github.workspace}}/python/build
+        FAKEVIM_CMD: ":q"
+      run: |
+        set -ex
+
+        # Start X11 and window manager.
+        Xvfb $DISPLAY -screen 0 800x600x24 & sleep 5
+        openbox & sleep 8
+
+        python test.py

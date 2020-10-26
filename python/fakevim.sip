@@ -144,7 +144,6 @@ public:
     virtual void extraInformationChanged(const QString &msg);
     virtual void selectionChanged(const QList<QTextEdit::ExtraSelection> &selection);
     virtual void highlightMatches(const QString &needle);
-    virtual QString writeAllRequested();
     virtual QTextCursor moveToMatchingParenthesis();
     virtual bool checkForElectricCharacter(QChar c);
     virtual void indentRegion(int beginLine, int endLine, QChar typedChar);
@@ -163,5 +162,9 @@ public:
     virtual void fold(int depth, bool fold);
     virtual void foldGoTo(int count, bool current);
     virtual void jumpToGlobalMark(QChar mark, bool backTickMode, const QString &fileName);
+
+    void jumpToLocalMark(QChar mark, bool backTickMode, const QString &fileName);
+    void tabPrevious();
+    void tabNext();
 };
 

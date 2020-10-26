@@ -379,6 +379,9 @@ class MainWindow (QMainWindow):
         self.__handler.handleCommand(
                 'source {home}/.vimrc'.format(home = os.path.expanduser("~")))
 
+    def command(self, cmd):
+        self.__handler.handleCommand(cmd)
+
     def openFile(self, filePath):
         self.__proxy.openFile(filePath)
 
@@ -396,5 +399,8 @@ if __name__ == "__main__":
         window.openFile(sys.argv[1])
     window.show()
 
-    sys.exit(app.exec_())
+    cmd = os.environ.get("FAKEVIM_CMD")
+    if cmd:
+        timer = QTimer.singleShot(0, lambda: window.command(cmd))
 
+    sys.exit(app.exec_())
