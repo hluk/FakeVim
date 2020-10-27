@@ -14,6 +14,8 @@ set(${bin}_public_headers
 set(${bin}_sources
     fakevim/fakevimactions.cpp
     fakevim/fakevimhandler.cpp
+    fakevim/utils/hostosinfo.cpp
+    fakevim/utils/osspecificaspects.h
     fakevim/utils/qtcassert.cpp
     ${${bin}_public_headers}
     )
@@ -25,6 +27,8 @@ include(cmake/cxx11.cmake)
 include(cmake/library.cmake)
 include(cmake/qt.cmake)
 include(cmake/pkg-config.cmake)
+
+add_definitions( -DQTCREATOR_UTILS_STATIC_LIB  )
 
 # Files with Q_OBJECT macros to pass to moc utility
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
