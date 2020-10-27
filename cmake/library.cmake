@@ -1,10 +1,10 @@
-set(INSTALL_LIB_DIR "lib" CACHE PATH
+set(INSTALL_LIB_DIR "lib${LIB_SUFFIX}" CACHE PATH
     "Installation directory for libraries")
 set(INSTALL_BIN_DIR "bin" CACHE PATH
     "Installation directory for executables")
 set(INSTALL_INCLUDE_DIR "include/${bin}" CACHE PATH
     "Installation directory for header files")
-set(INSTALL_CMAKE_DIR "lib/cmake/${bin}" CACHE PATH
+set(INSTALL_CMAKE_DIR "lib${LIB_SUFFIX}/cmake/${bin}" CACHE PATH
     "Installation directory for CMake files")
 
 # Shared or static library
@@ -22,8 +22,7 @@ set_target_properties(${bin} PROPERTIES
     )
 
 # Headers
-set(exports_dir "${CMAKE_CURRENT_BINARY_DIR}/exports")
-set(export_header "${exports_dir}/private/${bin}_export.h")
+set(export_header "${CMAKE_CURRENT_BINARY_DIR}/private/${bin}_export.h")
 set_target_properties(${bin} PROPERTIES
     PUBLIC_HEADER "${${bin}_public_headers}"
     PRIVATE_HEADER "${export_header}")
@@ -46,7 +45,6 @@ install(
 # For more info: https://cmake.org/cmake/help/v3.0/manual/cmake-packages.7.html#creating-packages
 include(GenerateExportHeader)
 generate_export_header(${bin} EXPORT_FILE_NAME "${export_header}")
-target_include_directories(${bin} PRIVATE "${exports_dir}")
 
 include(CMakePackageConfigHelpers)
 write_basic_package_version_file(
