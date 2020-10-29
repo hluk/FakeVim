@@ -57,6 +57,7 @@ def main():
     config = Config(qmakePath)
 
     projectPath = getEnv('PROJECT_PATH', os.getcwd() + '/..')
+    includePath = getEnv('INCLUDE_PATH', projectPath)
     libraryPath = getEnv('LIBRARY_PATH', projectPath + '/fakevim')
     sipFilePath = getEnv('SIP_FILE_PATH', projectPath + '/python/fakevim.sip')
     pyQtIncludePath = getEnv('PYQT_INCLUDE_PATH',
@@ -89,7 +90,7 @@ def main():
         HEADERS = $$headers "{projectPythonInclude}/fakevimproxy.h"
         SOURCES = $$sources "{projectPythonInclude}/fakevimproxy.cpp"
 
-        INCLUDEPATH += "{sipInclude}" "{pythonInclude}" "{projectInclude}" "{projectPythonInclude}"
+        INCLUDEPATH += "{sipInclude}" "{pythonInclude}" "{projectInclude}" "{projectPythonInclude}" "{includePath}" "{includePath}/fakevim"
         LIBS += -Wl,-rpath,"{libraryPath}" -L"{libraryPath}" -lfakevim "{pythonLibrary}"
         DEFINES += FAKEVIM_PYQT_MAJOR_VERSION={qtVersion}
 
@@ -104,6 +105,7 @@ def main():
             sipInclude = sipConfig.sip_inc_dir,
             projectInclude = projectPath,
             projectPythonInclude = projectPath + "/python",
+            includePath = includePath,
             libraryPath = libraryPath,
             pythonLibrary = pythonLibrary,
             qtVersion = config.hasQt5() and 5 or 4,
