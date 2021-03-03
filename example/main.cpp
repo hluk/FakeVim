@@ -43,7 +43,7 @@ int main(int argc, char *argv[])
 
     // Create main window.
     QMainWindow mainWindow;
-    initMainWindow(&mainWindow, editor, usePlainTextEdit ? "QPlainTextEdit" : "QTextEdit");
+    initMainWindow(&mainWindow, editor, QLatin1String(usePlainTextEdit ? "QPlainTextEdit" : "QTextEdit"));
 
     // Connect slots to FakeVimHandler signals.
     Proxy *proxy = connectSignals(&handler, &mainWindow, editor);
