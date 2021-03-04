@@ -27,7 +27,7 @@ jobs:
             compiler: clang_64
 
     env:
-      qt: '5.15.1'
+      qt: '5.15.2'
 
     steps:
       - name: Restore Qt cache
