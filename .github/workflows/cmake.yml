@@ -36,12 +36,9 @@ jobs:
         with:
           path: ${{runner.workspace}}/Qt/${{env.qt}}
           key: ${{runner.os}}-qt-${{env.qt}}
-          restore-keys: |
-            ${{runner.os}}-qt-
 
       - name: Install Qt
         uses: jurplel/install-qt-action@v2
-        if: steps.cache-qt.outputs.cache-hit != 'true'
         with:
           version: ${{env.qt}}
           dir: ${{runner.workspace}}
