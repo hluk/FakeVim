@@ -2561,6 +2561,17 @@ void FakeVimPlugin::test_vim_copy_paste()
     KEYS("gg\"yP", X "def" N "abc" N "abc" N "def" N "ghi");
     KEYS("\"xP", X "abc" N "def" N "abc" N "abc" N "def" N "ghi");
 
+    // QTCREATORBUG-25281
+    data.setText(X "abc" N "def" N "ghi");
+    KEYS("\"xyy", X "abc" N "def" N "ghi");
+    KEYS("\"xp", "abc" N X "abc" N "def" N "ghi");
+    KEYS("j", "abc" N "abc" N X "def" N "ghi");
+    KEYS("yy", "abc" N "abc" N X "def" N "ghi");
+    KEYS("\"xp", "abc" N "abc" N "def" N X "abc" N "ghi");
+    KEYS(".", "abc" N "abc" N "def" N "abc" N X "abc" N "ghi");
+    KEYS("\"xP", "abc" N "abc" N "def" N "abc" N X "abc" N "abc" N "ghi");
+    KEYS(".", "abc" N "abc" N "def" N "abc" N X "abc" N "abc" N "abc" N "ghi");
+
     // delete to black hole register
     data.setText("aaa bbb ccc");
     KEYS("yiww\"_diwP", "aaa aaa ccc");
@@ -3043,6 +3054,18 @@ void FakeVimPlugin::test_vim_substitute()
     COMMAND("undo | s/[bcef]//g", "a d");
     COMMAND("undo | s/\\w//g", " ");
     COMMAND("undo | s/f\\|$/-/g", "abc de-");
+
+    // modifiers
+    data.setText("abC dEfGh");
+    COMMAND("s/b...E/\\u&", "aBC dEfGh");
+    COMMAND("undo | s/b...E/\\U&/g", "aBC DEfGh");
+    COMMAND("undo | s/C..E/\\l&/g",  "abc dEfGh");
+    COMMAND("undo | s/b...E/\\L&/g", "abc defGh");
+
+    COMMAND("undo | s/\\(b...E\\)/\\u\\1/g", "aBC dEfGh");
+    COMMAND("undo | s/\\(b...E\\)/\\U\\1/g", "aBC DEfGh");
+    COMMAND("undo | s/\\(C..E\\)/\\l\\1/g",  "abc dEfGh");
+    COMMAND("undo | s/\\(b...E\\)/\\L\\1/g", "abc defGh");
 }
 
 void FakeVimPlugin::test_vim_ex_commandbuffer_paste()
@@ -4089,6 +4112,17 @@ void FakeVimPlugin::test_vim_command_J()
     KEYS("3J", lmid(0, 5) + " " + lmid(5, 1) + " " + lmid(6, 1).mid(4) + "| " + lmid(7));
     KEYS("uu", lmid(0, 4) + "\nint |main(int argc, char *argv[])\n" + lmid(5));
     COMMAND("redo", lmid(0, 4) + "\nint |main(int argc, char *argv[]) " + lmid(5));
+
+    // Joining comments
+    data.doCommand("set formatoptions=f");
+    data.setText("// abc" N "// def");
+    KEYS("J", "// abc def");
+
+    data.setText("/*" N X "* abc" N "* def" N "*/");
+    KEYS("J", "/*" N "* abc def" N "*/");
+
+    data.setText("# abc" N "# def");
+    KEYS("J", "# abc def");
 }
 
 void FakeVimPlugin::test_vim_command_put_at_eol()
@@ -4194,6 +4228,230 @@ void FakeVimPlugin::test_vim_visual_block_D()
     KEYS("<C-R>", X "a" N "g" N "" N "j");
     KEYS("u", "a" X "bc def" N "ghi" N "" N "jklm");
     KEYS(".", X "a" N "g" N "" N "j");
+}
+
+void FakeVimPlugin::test_vim_commentary_emulation()
+{
+    TestData data;
+    setup(&data);
+    data.doCommand("set commentary");
+
+    // Commenting a single line
+    data.setText("abc" N "def");
+    KEYS("gcc", X "// abc" N "def");
+    KEYS("gcc", X "abc" N "def");
+    KEYS(".", X "// abc" N "def");
+
+    // Multiple lines
+    data.setText("abc" N "  def" N "ghi");
+    KEYS("gcj", X "// abc" N "  // def" N "ghi");
+    KEYS("gcj", X "abc" N "  def" N "ghi");
+    KEYS("gc2j", X "// abc" N "  // def" N "// ghi");
+    KEYS("gcj", X "abc" N "  def" N "// ghi");
+    KEYS(".", X "// abc" N "  // def" N "// ghi");
+
+    // Visual mode
+    data.setText("abc" N "def");
+    KEYS("Vjgc", X "// abc" N "// def");
+    KEYS(".", X "abc" N "def");
+}
+
+void FakeVimPlugin::test_vim_commentary_file_names()
+{
+    TestData data;
+    setup(&data);
+    data.doCommand("set commentary");
+
+    // Default is "//"
+    data.setText("abc");
+    KEYS("gcc", X "// abc");
+
+    // pri and pro
+    data.handler->setCurrentFileName("Test.pri");
+    data.setText("abc");
+    KEYS("gcc", X "# abc");
+    data.handler->setCurrentFileName("Test.pro");
+    KEYS("gcc", X "abc");
+
+    // .h .hpp .cpp
+    data.handler->setCurrentFileName("Test.h");
+    data.setText("abc");
+    KEYS("gcc", X "// abc");
+    data.handler->setCurrentFileName("Test.hpp");
+    KEYS("gcc", X "abc");
+    data.handler->setCurrentFileName("Test.cpp");
+    KEYS("gcc", X "// abc");
+}
+
+void FakeVimPlugin::test_vim_replace_with_register_emulation()
+{
+    TestData data;
+    setup(&data);
+    data.doCommand("set replacewithregister");
+
+    // Simple replace
+    data.setText("abc def ghi");
+    KEYS("yw", "abc def ghi");
+    KEYS("w", "abc " X "def ghi");
+    KEYS("grw", "abc " X "abc ghi");
+    KEYS("w", "abc abc " X "ghi");
+    KEYS(".", "abc abc " X "abc ");
+
+    // Registers
+    data.setText("abc def ghi jkl mno");
+    KEYS("\"xyiw", "abc def ghi jkl mno");
+    KEYS("w", "abc " X "def ghi jkl mno");
+    KEYS("yiw", "abc " X "def ghi jkl mno");
+    KEYS("w", "abc def " X "ghi jkl mno");
+    KEYS("griw", "abc def " X "def jkl mno");
+    KEYS("w", "abc def def " X "jkl mno");
+    KEYS("\"xgriw", "abc def def " X "abc mno");
+    KEYS("w", "abc def def abc " X "mno");
+    KEYS(".", "abc def def abc " X "abc");
+
+    // Replace entire line
+    data.setText("abc" N "def" N "ghi" N "jkhl");
+    KEYS("yyj", "abc" N X "def" N "ghi" N "jkhl");
+    KEYS("grr", "abc" N X "abc" N "ghi" N "jkhl");
+    KEYS("j", "abc" N "abc" N X "ghi" N "jkhl");
+    KEYS(".", "abc" N "abc" N X "abc" N "jkhl");
+
+    // Visual line mode
+    data.setText("abc" N "def" N "ghi" N "jkhl");
+    KEYS("yyj", "abc" N X "def" N "ghi" N "jkhl");
+    KEYS("Vgr", "abc" N X "abc" N "ghi" N "jkhl");
+    KEYS("j", "abc" N "abc" N X "ghi" N "jkhl");
+    KEYS(".", "abc" N "abc" N X "abc" N "jkhl");
+
+    // Visual char mode
+    data.setText("abc defghi");
+    KEYS("yiw", "abc defghi");
+    KEYS("w", "abc defghi");
+    KEYS("v4lgr", "abc abci");
+}
+
+void FakeVimPlugin::test_vim_exchange_emulation()
+{
+    TestData data;
+    setup(&data);
+    data.doCommand("set exchange");
+
+    // Simple exchange
+    data.setText("abc def");
+    KEYS("cxiw", "abc def");
+    KEYS("W", "abc " X "def");
+    KEYS(".", "def abc");
+
+    // Clearing pending exchange
+    data.setText("abc def ghi");
+    KEYS("cxiw", "abc def ghi");
+    KEYS("cxc", "abc def ghi");
+    KEYS("W", "abc " X "def ghi");
+    KEYS("cxiw", "abc def" X " ghi");
+    KEYS("W", "abc def " X "ghi");
+    KEYS(".", "abc ghi def");
+
+    // Exchange line
+    data.setText("abc" N "def");
+    KEYS("cxx", "abc" N "def");
+    KEYS("j", "abc" N "def");
+    KEYS(".", "def" N "abc");
+}
+
+void FakeVimPlugin::test_vim_arg_text_obj_emulation()
+{
+    TestData data;
+    setup(&data);
+    data.doCommand("set argtextobj");
+
+    data.setText("foo(int" X " i, double d, float f)");
+    KEYS("dia", "foo(" X ", double d, float f)");
+    KEYS("wdia", "foo(, " X ", float f)");
+    KEYS("wdia", "foo(, , " X ")");
+
+    data.setText("foo(int" X " i, double d, float f, long l)");
+    KEYS("daa", "foo(" X "double d, float f, long l)");
+    KEYS("WWdaa", "foo(double d" X ", long l)");
+    KEYS("Wdaa", "foo(double d)");
+    KEYS("daa", "foo()");
+
+    data.setText("foo(std::map<int" X ", double> map)");
+    KEYS("dia", "foo()");
+
+    data.setText("foo(const C c" X " = C(bar, baz))");
+    KEYS("dia", "foo()");
+}
+
+void FakeVimPlugin::test_vim_surround_emulation()
+{
+    TestData data;
+    setup(&data);
+    data.doCommand("set surround");
+
+    // ys and ds
+    data.setText("abc");
+    KEYS(R"(ysawb)",      R"((abc))");
+    KEYS(R"(ysabB)",     R"({(abc)})");
+    KEYS(R"(ysaB])",    R"([{(abc)}])");
+    KEYS(R"(ysa]>)",   R"(<[{(abc)}]>)");
+    KEYS(R"(ysa>")",  R"("<[{(abc)}]>")");
+    KEYS(R"(ysa"')", R"('"<[{(abc)}]>"')");
+    KEYS(R"(ds')",    R"("<[{(abc)}]>")");
+    KEYS(R"(ds")",     R"(<[{(abc)}]>)");
+    KEYS(R"(ds>)",      R"([{(abc)}])");
+    KEYS(R"(ds])",       R"({(abc)})");
+    KEYS(R"(ds})",        R"((abc))");
+    KEYS(R"(ds))",         R"(abc)");
+
+    data.setText("abc d|ef ghi");
+    KEYS("ysiWb", "abc (def) ghi");
+    KEYS(".", "abc ((def)) ghi");
+    KEYS("dsb", "abc (def) ghi");
+    KEYS(".", "abc def ghi");
+    KEYS("ysaWb", "abc (def) ghi");
+    KEYS(".", "abc ((def)) ghi");
+    KEYS("dsb", "abc (def) ghi");
+    KEYS(".", "abc def ghi");
+
+    // yss
+    data.setText("\t" "abc");
+    KEYS("yssb", "\t" "(abc)");
+    KEYS(".", "\t" "((abc))");
+
+    // Surround with function
+    data.setText("abc");
+    KEYS("ysiWftest<CR>", "test(abc)");
+    KEYS(".", "test(test(abc))");
+
+    // yS puts text on a new line
+    data.setText("abc");
+    // FIXME: The auto-indent differs from Qt Creator.
+    KEYS("ySsB", "{" N
+                 "    abc" N
+                 "    }");
+
+    // cs
+    data.setText("(abc)");
+    KEYS(R"(csbB)",   R"({abc})");
+    KEYS(R"(csB])",   R"([abc])");
+    KEYS(R"(cs]>)",   R"(<abc>)");
+    KEYS(R"(cs>")",   R"("abc")");
+    KEYS(R"(cs"')",   R"('abc')");
+
+    // Visual line mode
+    data.setText("abc" N);
+    // FIXME: The auto-indent differs from Qt Creator.
+    KEYS("VSB", "{" N
+                 "    abc" N
+                 "    }" N);
+
+    // Visual char mode
+    data.setText("abc");
+    KEYS("vlSB", "{ab}c");
+
+    // Visual block mode
+    data.setText("abc" N "def");
+    KEYS("<C-v>ljSB", "{ab}c" N "{de}f");
 }
 
 void FakeVimPlugin::test_macros()

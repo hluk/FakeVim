@@ -23,19 +23,21 @@ set(${bin}_sources
 # Required pkg-config packages
 set(${bin}_pkg_config_requires)
 
-include(cmake/cxx11.cmake)
+include(cmake/cxx17.cmake)
 include(cmake/library.cmake)
 include(cmake/qt.cmake)
 include(cmake/pkg-config.cmake)
 
-add_definitions( -DQTCREATOR_UTILS_STATIC_LIB  )
-
 # Files with Q_OBJECT macros to pass to moc utility
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 qt5_wrap_cpp(${bin}_mocced "fakevim/fakevimhandler.h")
-# Generate moc file with correct file name.
-qt5_generate_moc("fakevim/fakevimhandler.cpp" "fakevimhandler.moc")
-target_sources(${bin} PRIVATE ${${bin}_mocced} "fakevimhandler.moc")
+target_sources(${bin} PRIVATE ${${bin}_mocced})
+
+target_compile_definitions(${bin} PRIVATE
+    QT_NO_CAST_TO_ASCII
+    QT_RESTRICTED_CAST_FROM_ASCII
+    QTCREATOR_UTILS_STATIC_LIB
+)
 
 option(BUILD_TESTS "Build tests")
 if (BUILD_TESTS)

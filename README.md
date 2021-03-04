@@ -172,3 +172,15 @@ Python Bindings
 
 To install Python bindings for FakeVim see "python/README.md" file.
 
+Update from Upstream
+--------------------
+
+The source code should be regularly updated from the Qt Creator.
+
+To fetch Qt Creator source code:
+
+    git clone "https://codereview.qt-project.org/qt-creator/qt-creator" /path/to/qt-creator
+
+To update FakeVim source code, run:
+
+    utils/update_from_qtc.sh /path/to/qt-creator

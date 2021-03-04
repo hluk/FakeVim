@@ -25,7 +25,7 @@
 
 #pragma once
 
-#define FAKEVIM_STANDALONE // Only diff with upstream, I hope
+#define FAKEVIM_STANDALONE
 
 #ifdef FAKEVIM_STANDALONE
 #   include "private/fakevim_export.h"
