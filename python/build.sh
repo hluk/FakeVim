@@ -14,7 +14,7 @@ export PYTHON=${PYTHON:-python}
 # Project and library paths
 export PROJECT_PATH=${PROJECT_PATH:-"$PWD/.."}
 export INCLUDE_PATH=${INCLUDE_PATH:-"$PROJECT_PATH"}
-export LIBRARY_PATH=${LIBRARY_PATH:-"$PROJECT_PATH/fakevim"}
+export LIBRARY_PATH=${LIBRARY_PATH:-"$PROJECT_PATH"}
 export SIP_FILE_PATH=${SIP_FILE_PATH:-"$PROJECT_PATH/python/fakevim.sip"}
 
 # PyQt path to sip files (e.g. "QtCore/QtCoremod.sip"). Defaults to
