@@ -7,8 +7,6 @@ files_to_update=(
     fakevimtr.h
 
     utils/hostosinfo.h
-    utils/layoutbuilder.cpp
-    utils/layoutbuilder.h
     utils/optional.h
     utils/qtcassert.cpp
     utils/qtcassert.h
