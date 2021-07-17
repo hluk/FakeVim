@@ -3,7 +3,12 @@ name: CMake
 
 # yamllint disable-line rule:truthy
 on:
-  - push
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
 
 jobs:
   build:
