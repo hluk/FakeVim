@@ -14,9 +14,6 @@ set(${bin}_public_headers
 set(${bin}_sources
     fakevim/fakevimactions.cpp
     fakevim/fakevimhandler.cpp
-    fakevim/utils/hostosinfo.cpp
-    fakevim/utils/osspecificaspects.h
-    fakevim/utils/qtcassert.cpp
     ${${bin}_public_headers}
     )
 
@@ -36,7 +33,7 @@ target_sources(${bin} PRIVATE ${${bin}_mocced})
 target_compile_definitions(${bin} PRIVATE
     QT_NO_CAST_TO_ASCII
     QT_RESTRICTED_CAST_FROM_ASCII
-    QTCREATOR_UTILS_STATIC_LIB
+    UTILS_STATIC_LIBRARY
 )
 
 option(BUILD_TESTS "Build tests")

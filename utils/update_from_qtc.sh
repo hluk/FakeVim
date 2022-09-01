@@ -5,14 +5,6 @@ files_to_update=(
     fakevimhandler.cpp
     fakevimhandler.h
     fakevimtr.h
-
-    utils/hostosinfo.h
-    utils/optional.h
-    utils/qtcassert.cpp
-    utils/qtcassert.h
-    utils/utils_global.h
-
-    3rdparty/optional/optional.hpp
 )
 
 qtc_home=$1
