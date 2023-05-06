@@ -27,6 +27,7 @@
 #include <QMessageBox>
 #include <QPainter>
 #include <QPlainTextEdit>
+#include <QRegularExpression>
 #include <QStatusBar>
 #include <QTextBlock>
 #include <QTextEdit>
@@ -149,35 +150,35 @@ Proxy *connectSignals(FakeVimHandler *handler, QMainWindow *mainWindow, QWidget 
     Proxy *proxy = new Proxy(editor, mainWindow, handler);
 
     handler->commandBufferChanged
-        .connect([proxy](const QString &contents, int cursorPos, int /*anchorPos*/, int /*messageLevel*/) {
+        .set([proxy](const QString &contents, int cursorPos, int /*anchorPos*/, int /*messageLevel*/) {
         proxy->changeStatusMessage(contents, cursorPos);
     });
-    handler->extraInformationChanged.connect([proxy](const QString &text) {
+    handler->extraInformationChanged.set([proxy](const QString &text) {
         proxy->changeExtraInformation(text);
     });
-    handler->statusDataChanged.connect([proxy](const QString &text) {
+    handler->statusDataChanged.set([proxy](const QString &text) {
         proxy->changeStatusData(text);
     });
-    handler->highlightMatches.connect([proxy](const QString &needle) {
+    handler->highlightMatches.set([proxy](const QString &needle) {
         proxy->highlightMatches(needle);
     });
-    handler->handleExCommandRequested.connect([proxy](bool *handled, const ExCommand &cmd) {
+    handler->handleExCommandRequested.set([proxy](bool *handled, const ExCommand &cmd) {
         proxy->handleExCommand(handled, cmd);
     });
-    handler->requestSetBlockSelection.connect([proxy](const QTextCursor &cursor) {
+    handler->requestSetBlockSelection.set([proxy](const QTextCursor &cursor) {
         proxy->requestSetBlockSelection(cursor);
     });
-    handler->requestDisableBlockSelection.connect([proxy] {
+    handler->requestDisableBlockSelection.set([proxy] {
         proxy->requestDisableBlockSelection();
     });
-    handler->requestHasBlockSelection.connect([proxy](bool *on) {
+    handler->requestHasBlockSelection.set([proxy](bool *on) {
         proxy->requestHasBlockSelection(on);
     });
 
-    handler->indentRegion.connect([proxy](int beginBlock, int endBlock, QChar typedChar) {
+    handler->indentRegion.set([proxy](int beginBlock, int endBlock, QChar typedChar) {
         proxy->indentRegion(beginBlock, endBlock, typedChar);
     });
-    handler->checkForElectricCharacter.connect([proxy](bool *result, QChar c) {
+    handler->checkForElectricCharacter.set([proxy](bool *result, QChar c) {
             proxy->checkForElectricCharacter(result, c);
     });
 
@@ -222,7 +223,7 @@ void Proxy::highlightMatches(const QString &pattern)
     selection.format.setForeground(Qt::black);
 
     // Highlight matches.
-    QRegExp re(pattern);
+    QRegularExpression re(pattern);
     QTextCursor cur = doc->find(re);
 
     m_searchSelection.clear();
