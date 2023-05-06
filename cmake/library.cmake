@@ -16,6 +16,7 @@ else()
 endif()
 
 add_library(${bin} ${libtype} ${${bin}_sources})
+target_compile_features(${bin} PUBLIC cxx_std_20)
 set_target_properties(${bin} PROPERTIES
     VERSION ${PROJECT_VERSION}
     SOVERSION ${PROJECT_VERSION_MAJOR}
