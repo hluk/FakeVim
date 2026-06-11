@@ -1,5 +1,5 @@
 // Copyright (C) 2016 The Qt Company Ltd.
-// SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GPL-3.0+ OR GPL-3.0 WITH Qt-GPL-exception-1.0
+// SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GPL-3.0-only WITH Qt-GPL-exception-1.0
 
 //
 // ATTENTION:
@@ -39,7 +39,6 @@
 #include <QDebug>
 #include <QFile>
 #include <QObject>
-#include <QProcess>
 #include <QPointer>
 #include <QRegularExpression>
 #include <QTextStream>
@@ -832,45 +831,6 @@ static void setClipboardData(const QString &content, RangeMode mode,
     clipboard->setMimeData(data, clipboardMode);
 }
 
-static QByteArray toLocalEncoding(const QString &text)
-{
-#if defined(Q_OS_WIN)
-    return QString(text).replace("\n", "\r\n").toLocal8Bit();
-#else
-    return text.toLocal8Bit();
-#endif
-}
-
-static QString fromLocalEncoding(const QByteArray &data)
-{
-#if defined(Q_OS_WIN)
-    return QString::fromLocal8Bit(data).replace("\n", "\r\n");
-#else
-    return QString::fromLocal8Bit(data);
-#endif
-}
-
-static QString getProcessOutput(const QString &command, const QString &input)
-{
-    QProcess proc;
-#if QT_VERSION >= QT_VERSION_CHECK(5,15,0)
-    QStringList arguments = QProcess::splitCommand(command);
-    QString executable = arguments.takeFirst();
-    proc.start(executable, arguments);
-#else
-    proc.start(command);
-#endif
-    proc.waitForStarted();
-    proc.write(toLocalEncoding(input));
-    proc.closeWriteChannel();
-
-    // FIXME: Process should be interruptable by user.
-    //        Solution is to create a QObject for each process and emit finished state.
-    proc.waitForFinished();
-
-    return fromLocalEncoding(proc.readAllStandardOutput());
-}
-
 static const QMap<QString, int> &vimKeyNames()
 {
     static const QMap<QString, int> k = {
@@ -1017,7 +977,7 @@ QDebug operator<<(QDebug ts, const ExCommand &cmd)
 
 QDebug operator<<(QDebug ts, const QList<QTextEdit::ExtraSelection> &sels)
 {
-    foreach (const QTextEdit::ExtraSelection &sel, sels)
+    for (const QTextEdit::ExtraSelection &sel : sels)
         ts << "SEL: " << sel.cursor.anchor() << sel.cursor.position();
     return ts;
 }
@@ -3064,7 +3024,7 @@ void FakeVimHandler::Private::clearPendingInput()
 void FakeVimHandler::Private::waitForMapping()
 {
     g.currentCommand.clear();
-    foreach (const Input &input, g.currentMap.currentInputs())
+    for (const Input &input : g.currentMap.currentInputs())
         g.currentCommand.append(input.toString());
 
     // wait for user to press any key or trigger complete mapping after interval
@@ -5212,6 +5172,7 @@ void FakeVimHandler::Private::handleReplaceMode(const Input &input)
         moveDown();
     } else if (input.isKey(Key_Insert)) {
         g.mode = InsertMode;
+        q->modeChanged(isInsertMode());
     } else if (input.isControl('o')) {
         enterCommandMode(ReplaceMode);
     } else {
@@ -5409,6 +5370,7 @@ void FakeVimHandler::Private::handleInsertMode(const Input &input)
         removeText(range);
     } else if (input.isKey(Key_Insert)) {
         g.mode = ReplaceMode;
+        q->modeChanged(isInsertMode());
     } else if (input.isKey(Key_Left)) {
         moveLeft();
     } else if (input.isShift(Key_Left) || input.isControl(Key_Left)) {
@@ -5472,16 +5434,18 @@ void FakeVimHandler::Private::handleInsertMode(const Input &input)
     } else if (input.isKey(Key_PageUp) || input.isControl('b')) {
         movePageUp();
     } else if (input.isKey(Key_Tab)) {
-        m_buffer->insertState.insertingSpaces = true;
-        if (s.expandTab.value()) {
-            const int ts = s.tabStop.value();
-            const int col = logicalCursorColumn();
-            QString str = QString(ts - col % ts, ' ');
-            insertText(str);
-        } else {
-            insertInInsertMode(input.raw());
+        if (q->tabPressedInInsertMode()) {
+            m_buffer->insertState.insertingSpaces = true;
+            if (s.expandTab.value()) {
+                const int ts = s.tabStop.value();
+                const int col = logicalCursorColumn();
+                QString str = QString(ts - col % ts, ' ');
+                insertText(str);
+            } else {
+                insertInInsertMode(input.raw());
+            }
+            m_buffer->insertState.insertingSpaces = false;
         }
-        m_buffer->insertState.insertingSpaces = false;
     } else if (input.isControl('d')) {
         // remove one level of indentation from the current line
         const int shift = s.shiftWidth.value();
@@ -6085,13 +6049,13 @@ bool FakeVimHandler::Private::handleExMapCommand(const ExCommand &cmd0) // :map
     //qDebug() << "MAPPING: " << modes << lhs << rhs;
     switch (type) {
         case Unmap:
-            foreach (char c, modes)
+            for (char c : std::as_const(modes))
                 MappingsIterator(&g.mappings, c, key).remove();
             break;
         case Map: Q_FALLTHROUGH();
         case Noremap: {
-            Inputs inputs(rhs, type == Noremap, silent);
-            foreach (char c, modes)
+            const Inputs inputs(rhs, type == Noremap, silent);
+            for (char c : std::as_const(modes))
                 MappingsIterator(&g.mappings, c).setInputs(key, inputs, unique);
             break;
         }
@@ -6109,7 +6073,7 @@ bool FakeVimHandler::Private::handleExHistoryCommand(const ExCommand &cmd)
         QString info;
         info += "#  command history\n";
         int i = 0;
-        foreach (const QString &item, g.commandBuffer.historyItems()) {
+        for (const QString &item : g.commandBuffer.historyItems()) {
             ++i;
             info += QString("%1 %2\n").arg(i, -8).arg(item);
         }
@@ -6137,7 +6101,7 @@ bool FakeVimHandler::Private::handleExRegisterCommand(const ExCommand &cmd)
     }
     QString info;
     info += "--- Registers ---\n";
-    for (char reg : qAsConst(regs)) {
+    for (char reg : std::as_const(regs)) {
         QString value = quoteUnprintable(registerContents(reg));
         info += QString("\"%1   %2\n").arg(reg).arg(value);
     }
@@ -6443,7 +6407,8 @@ bool FakeVimHandler::Private::handleExBangCommand(const ExCommand &cmd) // :!
     const QString command = QString(cmd.cmd.mid(1) + ' ' + cmd.args).trimmed();
     const QString input = replaceText ? selectText(cmd.range) : QString();
 
-    const QString result = getProcessOutput(command, input);
+    QString result;
+    q->processOutput(command, input, &result);
 
     if (replaceText) {
         setCurrentRange(cmd.range);
@@ -6534,7 +6499,7 @@ bool FakeVimHandler::Private::handleExMultiRepeatCommand(const ExCommand &cmd)
         const Range range(pos, pos, RangeLineMode);
         const QString lineContents = selectText(range);
         const QRegularExpressionMatch match = re.match(lineContents);
-        if (match.hasMatch() ^ negates) {
+        if (match.hasMatch() != negates) {
             QTextCursor tc(document());
             tc.setPosition(pos);
             matches.append(tc);
@@ -6543,7 +6508,7 @@ bool FakeVimHandler::Private::handleExMultiRepeatCommand(const ExCommand &cmd)
 
     beginEditBlock();
 
-    for (const QTextCursor &tc : qAsConst(matches)) {
+    for (const QTextCursor &tc : std::as_const(matches)) {
         setPosition(tc.position());
         handleExCommand(innerCmd);
     }
@@ -8590,6 +8555,8 @@ void FakeVimHandler::Private::enterInsertOrReplaceMode(Mode mode)
         g.returnToMode = mode;
         clearLastInsertion();
     }
+
+    q->modeChanged(isInsertMode());
 }
 
 void FakeVimHandler::Private::enterVisualInsertMode(QChar command)
@@ -8665,6 +8632,8 @@ void FakeVimHandler::Private::enterCommandMode(Mode returnToMode)
     g.returnToMode = returnToMode;
     m_positionPastEnd = false;
     m_anchorPastEnd = false;
+
+    q->modeChanged(isInsertMode());
 }
 
 void FakeVimHandler::Private::enterExMode(const QString &contents)
@@ -8679,6 +8648,8 @@ void FakeVimHandler::Private::enterExMode(const QString &contents)
     g.submode = NoSubMode;
     g.subsubmode = NoSubSubMode;
     unfocus();
+
+    q->modeChanged(isInsertMode());
 }
 
 void FakeVimHandler::Private::recordJump(int position)

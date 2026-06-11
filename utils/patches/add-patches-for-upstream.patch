@@ -1,20 +1,8 @@
-From abf9e46f65b1011d4b7e6feb13949744c90199d1 Mon Sep 17 00:00:00 2001
-From: Lukas Holecek <hluk@email.cz>
-Date: Thu, 1 Sep 2022 19:17:50 +0200
-Subject: [PATCH] Add patches for upstream
-
----
- fakevim/fakevimactions.cpp | 17 +++++++----------
- fakevim/fakevimactions.h   | 14 +++++++++-----
- fakevim/fakevimhandler.cpp | 29 ++++++++++++++++++++++-------
- fakevim/fakevimhandler.h   | 12 +++++++++---
- 4 files changed, 47 insertions(+), 25 deletions(-)
-
 diff --git a/fakevim/fakevimactions.cpp b/fakevim/fakevimactions.cpp
-index 2a91730..f8eee8d 100644
+index 7f7c44b..5f59987 100644
 --- a/fakevim/fakevimactions.cpp
 +++ b/fakevim/fakevimactions.cpp
-@@ -9,14 +9,6 @@
+@@ -10,14 +10,6 @@
  // Qt Creator. The idea is to keep this file here in a "clean" state that
  // allows easy reuse with any QTextEdit or QPlainTextEdit derived class.
  
@@ -29,7 +17,7 @@ index 2a91730..f8eee8d 100644
  namespace FakeVim {
  namespace Internal {
  
-@@ -127,8 +119,13 @@ FakeVimSettings::FakeVimSettings()
+@@ -128,8 +120,13 @@ FakeVimSettings::FakeVimSettings()
      backspace.setDisplayStyle(FvStringAspect::LineEditDisplay);
      isKeyword.setDisplayStyle(FvStringAspect::LineEditDisplay);
  
@@ -37,25 +25,25 @@ index 2a91730..f8eee8d 100644
 -                ? "$HOME/.vimrc" : "%USERPROFILE%\\_vimrc");
 +    const QString vimrcDefault = QLatin1String(
 +#ifdef Q_OS_UNIX
-+        "$HOME/.vimrc"
++                "$HOME/.vimrc"
 +#else
-+        "%USERPROFILE%\\_vimrc"
++                "%USERPROFILE%\\_vimrc"
 +#endif
-+    )
++    );
      vimRcPath.setExpectedKind(PathChooser::File);
-     vimRcPath.setToolTip(tr("Keep empty to use the default path, i.e. "
+     vimRcPath.setToolTip(Tr::tr("Keep empty to use the default path, i.e. "
                 "%USERPROFILE%\\_vimrc on Windows, ~/.vimrc otherwise."));
 diff --git a/fakevim/fakevimactions.h b/fakevim/fakevimactions.h
-index afe5a68..802f448 100644
+index 6f7e303..5aead73 100644
 --- a/fakevim/fakevimactions.h
 +++ b/fakevim/fakevimactions.h
-@@ -3,8 +3,12 @@
- 
+@@ -4,7 +4,13 @@
  #pragma once
  
--#ifndef FAKEVIM_STANDALONE
+ #ifndef FAKEVIM_STANDALONE
 -#   include <utils/aspects.h>
 +#define FAKEVIM_STANDALONE
++#endif
 +
 +#ifdef FAKEVIM_STANDALONE
 +#   include "private/fakevim_export.h"
@@ -64,7 +52,7 @@ index afe5a68..802f448 100644
  #endif
  
  #include <QCoreApplication>
-@@ -17,7 +21,7 @@ namespace FakeVim {
+@@ -17,7 +23,7 @@ namespace FakeVim {
  namespace Internal {
  
  #ifdef FAKEVIM_STANDALONE
@@ -73,16 +61,16 @@ index afe5a68..802f448 100644
  {
  public:
      FvBaseAspect();
-@@ -73,7 +77,7 @@ using FvStringAspect = Utils::StringAspect;
+@@ -73,7 +79,7 @@ using FvStringAspect = Utils::StringAspect;
  
  #endif
  
 -class FakeVimSettings final : public FvAspectContainer
 +class FAKEVIM_EXPORT FakeVimSettings final : public FvAspectContainer
  {
-     Q_DECLARE_TR_FUNCTIONS(FakeVim)
- 
-@@ -144,7 +148,7 @@ class FakeVimSettings final : public FvAspectContainer
+ public:
+     FakeVimSettings();
+@@ -142,7 +148,7 @@ private:
      QHash<FvBaseAspect *, QString> m_aspectToName;
  };
  
@@ -91,76 +79,19 @@ index afe5a68..802f448 100644
  
  } // namespace Internal
  } // namespace FakeVim
-diff --git a/fakevim/fakevimhandler.cpp b/fakevim/fakevimhandler.cpp
-index fa52d2a..ec00168 100644
---- a/fakevim/fakevimhandler.cpp
-+++ b/fakevim/fakevimhandler.cpp
-@@ -36,11 +36,10 @@
- #include "fakevimactions.h"
- #include "fakevimtr.h"
- 
--#include <utils/qtcprocess.h>
--
- #include <QDebug>
- #include <QFile>
- #include <QObject>
-+#include <QProcess>
- #include <QPointer>
- #include <QRegularExpression>
- #include <QTextStream>
-@@ -842,18 +841,34 @@ static QByteArray toLocalEncoding(const QString &text)
- #endif
- }
- 
-+static QString fromLocalEncoding(const QByteArray &data)
-+{
-+#if defined(Q_OS_WIN)
-+    return QString::fromLocal8Bit(data).replace("\n", "\r\n");
-+#else
-+    return QString::fromLocal8Bit(data);
-+#endif
-+}
-+
- static QString getProcessOutput(const QString &command, const QString &input)
- {
--    Utils::QtcProcess proc;
--    proc.setCommand(Utils::CommandLine::fromUserInput(command));
--    proc.setWriteData(toLocalEncoding(input));
--    proc.start();
-+    QProcess proc;
-+#if QT_VERSION >= QT_VERSION_CHECK(5,15,0)
-+    QStringList arguments = QProcess::splitCommand(command);
-+    QString executable = arguments.takeFirst();
-+    proc.start(executable, arguments);
-+#else
-+    proc.start(command);
-+#endif
-+    proc.waitForStarted();
-+    proc.write(toLocalEncoding(input));
-+    proc.closeWriteChannel();
- 
-     // FIXME: Process should be interruptable by user.
-     //        Solution is to create a QObject for each process and emit finished state.
-     proc.waitForFinished();
- 
--    return proc.cleanedStdOut();
-+    return fromLocalEncoding(proc.readAllStandardOutput());
- }
- 
- static const QMap<QString, int> &vimKeyNames()
 diff --git a/fakevim/fakevimhandler.h b/fakevim/fakevimhandler.h
-index eff6c57..cb3d839 100644
+index 7c0ceca..6841b89 100644
 --- a/fakevim/fakevimhandler.h
 +++ b/fakevim/fakevimhandler.h
 @@ -3,6 +3,12 @@
  
  #pragma once
  
++#ifndef FAKEVIM_STANDALONE
 +#define FAKEVIM_STANDALONE
-+
-+#ifdef FAKEVIM_STANDALONE
-+#   include "private/fakevim_export.h"
 +#endif
++
++#include "private/fakevim_export.h"
 +
  #include <QObject>
  #include <QTextEdit>
@@ -183,8 +114,8 @@ index eff6c57..cb3d839 100644
  {
      ExCommand() = default;
      ExCommand(const QString &cmd, const QString &args = QString(),
-@@ -80,7 +86,7 @@ class Signal
-     std::vector<Callable> m_callables;
+@@ -87,7 +93,7 @@ private:
+     Function m_callable;
  };
  
 -class FakeVimHandler : public QObject
@@ -192,6 +123,3 @@ index eff6c57..cb3d839 100644
  {
      Q_OBJECT
  
--- 
-2.37.2
-

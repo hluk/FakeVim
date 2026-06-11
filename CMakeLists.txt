@@ -20,14 +20,13 @@ set(${bin}_sources
 # Required pkg-config packages
 set(${bin}_pkg_config_requires)
 
-include(cmake/cxx17.cmake)
 include(cmake/library.cmake)
 include(cmake/qt.cmake)
 include(cmake/pkg-config.cmake)
 
 # Files with Q_OBJECT macros to pass to moc utility
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
-qt5_wrap_cpp(${bin}_mocced "fakevim/fakevimhandler.h")
+qt6_wrap_cpp(${bin}_mocced "fakevim/fakevimhandler.h")
 target_sources(${bin} PRIVATE ${${bin}_mocced})
 
 target_compile_definitions(${bin} PRIVATE
@@ -40,7 +39,7 @@ option(BUILD_TESTS "Build tests")
 if (BUILD_TESTS)
     message(STATUS "Building tests")
 
-    find_package(Qt5Test REQUIRED)
+    find_package(Qt6Test REQUIRED)
 
     add_executable(fakevim_test
         tests/fakevim_test.cpp
@@ -48,7 +47,7 @@ if (BUILD_TESTS)
         example/editor.cpp
     )
     set_property(TARGET fakevim_test PROPERTY AUTOMOC ON)
-    target_link_libraries(fakevim_test fakevim Qt5::Widgets Qt5::Test)
+    target_link_libraries(fakevim_test fakevim Qt6::Widgets Qt6::Test)
 
     target_include_directories(fakevim_test PRIVATE
         ${CMAKE_SOURCE_DIR}/fakevim
@@ -67,5 +66,5 @@ if (BUILD_EXAMPLE)
     set_property(TARGET fakevim_example PROPERTY AUTOMOC ON)
 
     target_link_libraries(fakevim_example fakevim)
-    target_link_libraries(fakevim_example Qt5::Widgets)
+    target_link_libraries(fakevim_example Qt6::Widgets)
 endif()
