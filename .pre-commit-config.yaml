@@ -1,0 +1,29 @@
+---
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-merge-conflict
+      - id: check-xml
+      - id: check-yaml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+        exclude: '\.patch$'
+
+  - repo: local
+    hooks:
+      - id: forbid-non-ascii
+        name: Forbid non-ASCII characters
+        entry: python3 -c "import sys; bad=[f'{f}:{i}' for f in sys.argv[1:] for i,l in enumerate(open(f,'rb'),1)
+          if any(b>127 for b in l)]; sys.exit('\n'.join(bad)) if bad else None"
+        language: system
+
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.12
+    hooks:
+      - id: actionlint
+
+  - repo: https://github.com/zizmorcore/zizmor-pre-commit
+    rev: v1.25.2
+    hooks:
+      - id: zizmor

@@ -73,4 +73,3 @@ private:
     void call_tabPrevious();
     void call_tabNext();
 };
-

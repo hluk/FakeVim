@@ -38,4 +38,3 @@ make
 # test
 #export PYTHONPATH=$PWD
 #"$PYTHON" "$PROJECT_PATH/python/test.py"
-

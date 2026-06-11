@@ -22,4 +22,3 @@ script needs to be invoked with following command.
 ```
 python3 ./configure.py
 ```
-

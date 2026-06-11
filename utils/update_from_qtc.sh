@@ -8,7 +8,7 @@ files_to_update=(
 )
 
 # Standalone shim headers in fakevim/utils/ (hostosinfo.h, store.h, storekey.h)
-# are NOT from upstream — they provide minimal standalone implementations of
+# are NOT from upstream -- they provide minimal standalone implementations of
 # Utils::Key, Utils::HostOsInfo etc. They are not touched by this script and
 # survive the sync automatically since we only rsync individual files above.
 
@@ -60,5 +60,5 @@ echo "     and regenerate the patch: git diff HEAD~1 -- fakevim/*.{h,cpp} > $scr
 echo "     then: git add fakevim/ utils/patches/ && git commit --amend --no-edit"
 echo "  3. Run tests: cd build && ctest --output-on-failure"
 echo "     Fix any test expectation changes in tests/fakevim_test.cpp (backspace behavior is a known area)"
-echo "  4. If upstream changed Callback or ExCommand API, update python/fakevimproxy.cpp (.connect → .set)"
+echo "  4. If upstream changed Callback or ExCommand API, update python/fakevimproxy.cpp (.connect -> .set)"
 echo "  5. Check example/editor.cpp for any API changes (settings accessor, signal signatures)"
