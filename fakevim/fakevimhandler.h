@@ -3,10 +3,6 @@
 
 #pragma once
 
-#ifndef FAKEVIM_STANDALONE
-#define FAKEVIM_STANDALONE
-#endif
-
 #include "private/fakevim_export.h"
 
 #include <QObject>
@@ -15,8 +11,7 @@
 #include <functional>
 #include <vector>
 
-namespace FakeVim {
-namespace Internal {
+namespace FakeVim::Internal {
 
 enum RangeMode
 {
@@ -33,7 +28,7 @@ struct FAKEVIM_EXPORT Range
 {
     Range() = default;
     Range(int b, int e, RangeMode m = RangeCharMode);
-    QString toString() const;
+
     bool isValid() const;
 
     int beginPos = -1;
@@ -44,8 +39,6 @@ struct FAKEVIM_EXPORT Range
 struct FAKEVIM_EXPORT ExCommand
 {
     ExCommand() = default;
-    ExCommand(const QString &cmd, const QString &args = QString(),
-        const Range &range = Range());
 
     bool matches(const QString &min, const QString &full) const;
 
@@ -142,6 +135,8 @@ public:
 
     bool jumpToLocalMark(QChar mark, bool backTickMode);
 
+    bool inFakeVimMode();
+
     bool eventFilter(QObject *ob, QEvent *ev) override;
 
     Callback<void(const QString &msg, int cursorPos, int anchorPos, int messageLevel)>
@@ -182,7 +177,6 @@ private:
     Private *d;
 };
 
-} // namespace Internal
-} // namespace FakeVim
+} // namespace FakeVim::Internal
 
 Q_DECLARE_METATYPE(FakeVim::Internal::ExCommand)

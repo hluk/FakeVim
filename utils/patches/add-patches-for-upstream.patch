@@ -1,67 +1,71 @@
-diff --git a/fakevim/fakevimactions.cpp b/fakevim/fakevimactions.cpp
-index 7f7c44b..5f59987 100644
---- a/fakevim/fakevimactions.cpp
-+++ b/fakevim/fakevimactions.cpp
-@@ -10,14 +10,6 @@
+diff --git a/fakevimactions.cpp b/fakevimactions.cpp
+index 6c7c133..3335119 100644
+--- a/fakevimactions.cpp
++++ b/fakevimactions.cpp
+@@ -10,23 +10,11 @@
  // Qt Creator. The idea is to keep this file here in a "clean" state that
  // allows easy reuse with any QTextEdit or QPlainTextEdit derived class.
  
+-#ifndef FAKEVIM_STANDALONE
+-#include <texteditor/icodestylepreferences.h>
+-#include <texteditor/tabsettings.h>
+-#include <texteditor/codestylepool.h>
+-#include <texteditor/typingsettings.h>
+-#endif
+-
 -#include <utils/hostosinfo.h>
 -#include <utils/layoutbuilder.h>
 -#include <utils/qtcassert.h>
--
+ 
 -#include <QDebug>
++namespace FakeVim::Internal {
+ 
+ using namespace Utils;
+ 
+-namespace FakeVim::Internal {
 -
--using namespace Utils;
--
- namespace FakeVim {
- namespace Internal {
+ #ifdef FAKEVIM_STANDALONE
  
-@@ -128,8 +120,13 @@ FakeVimSettings::FakeVimSettings()
-     backspace.setDisplayStyle(FvStringAspect::LineEditDisplay);
-     isKeyword.setDisplayStyle(FvStringAspect::LineEditDisplay);
- 
--    const QString vimrcDefault = QLatin1String(HostOsInfo::isAnyUnixHost()
--                ? "$HOME/.vimrc" : "%USERPROFILE%\\_vimrc");
-+    const QString vimrcDefault = QLatin1String(
-+#ifdef Q_OS_UNIX
-+                "$HOME/.vimrc"
-+#else
-+                "%USERPROFILE%\\_vimrc"
-+#endif
-+    );
-     vimRcPath.setExpectedKind(PathChooser::File);
-     vimRcPath.setToolTip(Tr::tr("Keep empty to use the default path, i.e. "
-                "%USERPROFILE%\\_vimrc on Windows, ~/.vimrc otherwise."));
-diff --git a/fakevim/fakevimactions.h b/fakevim/fakevimactions.h
-index 6f7e303..5aead73 100644
---- a/fakevim/fakevimactions.h
-+++ b/fakevim/fakevimactions.h
-@@ -4,7 +4,13 @@
- #pragma once
- 
- #ifndef FAKEVIM_STANDALONE
--#   include <utils/aspects.h>
-+#define FAKEVIM_STANDALONE
-+#endif
-+
-+#ifdef FAKEVIM_STANDALONE
-+#   include "private/fakevim_export.h"
-+#else
-+#   include <utils/savedaction.h>
- #endif
- 
- #include <QCoreApplication>
-@@ -17,7 +23,7 @@ namespace FakeVim {
- namespace Internal {
+ void FvBaseAspect::setSettingsKey(const Key &group, const Key &key)
+diff --git a/fakevimactions.h b/fakevimactions.h
+index 1ad91bb..354d99f 100644
+--- a/fakevimactions.h
++++ b/fakevimactions.h
+@@ -5,13 +5,14 @@
  
  #ifdef FAKEVIM_STANDALONE
+ 
+-#include <utils/store.h>
++#include "utils/storekey.h"
++#include "private/fakevim_export.h"
+ 
+ namespace Utils { class FilePath {}; }
+ 
+ #else
+ 
+-#include <coreplugin/dialogs/ioptionspage.h>
++#include <utils/savedaction.h>
+ 
+ #endif
+ 
+@@ -25,7 +26,7 @@ namespace FakeVim::Internal {
+ 
+ #ifdef FAKEVIM_STANDALONE
+ 
 -class FvBaseAspect
 +class FAKEVIM_EXPORT FvBaseAspect
  {
  public:
-     FvBaseAspect();
-@@ -73,7 +79,7 @@ using FvStringAspect = Utils::StringAspect;
+     FvBaseAspect() = default;
+@@ -57,6 +58,7 @@ public:
+     void setDefaultVariantValue(const QVariant &value) override
+     {
+         m_defaultValue = value.value<ValueType>();
++        m_value = m_defaultValue;
+     }
+     QVariant variantValue() const override
+     {
+@@ -95,7 +97,7 @@ using FvFilePathAspect = Utils::FilePathAspect;
  
  #endif
  
@@ -70,33 +74,68 @@ index 6f7e303..5aead73 100644
  {
  public:
      FakeVimSettings();
-@@ -142,7 +148,7 @@ private:
-     QHash<FvBaseAspect *, QString> m_aspectToName;
+@@ -165,6 +167,6 @@ private:
+     QHash<FvBaseAspect *, Utils::Key> m_aspectToName;
  };
  
--FakeVimSettings *fakeVimSettings();
-+FAKEVIM_EXPORT FakeVimSettings *fakeVimSettings();
+-FakeVimSettings &settings();
++FAKEVIM_EXPORT FakeVimSettings &settings();
  
- } // namespace Internal
- } // namespace FakeVim
-diff --git a/fakevim/fakevimhandler.h b/fakevim/fakevimhandler.h
-index 7c0ceca..6841b89 100644
---- a/fakevim/fakevimhandler.h
-+++ b/fakevim/fakevimhandler.h
-@@ -3,6 +3,12 @@
+ } // FakeVim::Internal
+diff --git a/fakevimhandler.cpp b/fakevimhandler.cpp
+index f33ce1f..0280fa0 100644
+--- a/fakevimhandler.cpp
++++ b/fakevimhandler.cpp
+@@ -4959,7 +4959,7 @@ bool FakeVimHandler::Private::handleDeleteChangeSurroundingSubMode(const Input &
+             endEditBlock();
+             clearCurrentMode();
+ 
+-            g.dotCommand = "ds" + input.asChar();
++            g.dotCommand = QString::fromLatin1("ds") + input.asChar();
+         } else if (g.submode == ChangeSurroundingSubMode) {
+             g.subsubmode = SurroundSubSubMode;
+         }
+@@ -6156,7 +6156,7 @@ bool FakeVimHandler::Private::handleExSetCommand(const ExCommand &cmd)
+             bool oldValue = act->variantValue().toBool();
+             if (printOption) {
+                 showMessage(MessageInfo, QLatin1String(oldValue ? "" : "no")
+-                            + act->settingsKey().toByteArray().toLower());
++                            + QString::fromUtf8(act->settingsKey().toByteArray().toLower()));
+             } else if (toggleOption || negateOption == oldValue) {
+                 act->setVariantValue(!oldValue);
+             }
+@@ -6165,7 +6165,7 @@ bool FakeVimHandler::Private::handleExSetCommand(const ExCommand &cmd)
+         } else if (toggleOption) {
+             showMessage(MessageError, Tr::tr("Trailing characters:") + ' ' + cmd.args);
+         } else {
+-            showMessage(MessageInfo, act->settingsKey().toByteArray().toLower() + "="
++            showMessage(MessageInfo, QString::fromUtf8(act->settingsKey().toByteArray().toLower()) + QLatin1String("=")
+                         + act->variantValue().toString());
+         }
+     }
+@@ -7801,7 +7801,7 @@ void FakeVimHandler::Private::surroundCurrentRange(const Input &input, const QSt
+ 
+     // yS, cS and VS also indent the surrounded text
+     if (g.surroundUpperCaseS || wasVisualLineMode)
+-        replay("=a" + input.asChar());
++        replay(QString::fromLatin1("=a") + input.asChar());
+ 
+     // Indenting has changed the dotCommand, so now set it back to the correct one
+     g.dotCommand = dotCommand;
+diff --git a/fakevimhandler.h b/fakevimhandler.h
+index 7a47ba8..2ea5cb2 100644
+--- a/fakevimhandler.h
++++ b/fakevimhandler.h
+@@ -3,6 +3,8 @@
  
  #pragma once
  
-+#ifndef FAKEVIM_STANDALONE
-+#define FAKEVIM_STANDALONE
-+#endif
-+
 +#include "private/fakevim_export.h"
 +
  #include <QObject>
  #include <QTextEdit>
  
-@@ -23,7 +29,7 @@ enum RangeMode
+@@ -22,7 +24,7 @@ enum RangeMode
      RangeBlockAndTailMode // Ctrl-v for D and X
  };
  
@@ -105,7 +144,7 @@ index 7c0ceca..6841b89 100644
  {
      Range() = default;
      Range(int b, int e, RangeMode m = RangeCharMode);
-@@ -35,7 +41,7 @@ struct Range
+@@ -34,7 +36,7 @@ struct Range
      RangeMode rangemode = RangeCharMode;
  };
  
@@ -113,8 +152,8 @@ index 7c0ceca..6841b89 100644
 +struct FAKEVIM_EXPORT ExCommand
  {
      ExCommand() = default;
-     ExCommand(const QString &cmd, const QString &args = QString(),
-@@ -87,7 +93,7 @@ private:
+ 
+@@ -84,7 +86,7 @@ private:
      Function m_callable;
  };
  
