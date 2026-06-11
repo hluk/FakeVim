@@ -7,11 +7,6 @@ files_to_update=(
     fakevimtr.h
 )
 
-# Standalone shim headers in fakevim/utils/ (hostosinfo.h, store.h, storekey.h)
-# are NOT from upstream -- they provide minimal standalone implementations of
-# Utils::Key, Utils::HostOsInfo etc. They are not touched by this script and
-# survive the sync automatically since we only rsync individual files above.
-
 qtc_home=$1
 
 script_dir=$(dirname "$(readlink -f "$0")")
