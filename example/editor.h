@@ -30,12 +30,10 @@ class QTextCursor;
 
 class Proxy;
 
-namespace FakeVim {
-namespace Internal {
+namespace FakeVim::Internal {
 class FakeVimHandler;
 struct ExCommand;
-} // namespace Internal
-} // namespace FakeVim
+} // namespace FakeVim::Internal
 
 QWidget *createEditorWidget(bool usePlainTextEdit);
 void initHandler(FakeVim::Internal::FakeVimHandler *handler);

@@ -43,6 +43,17 @@ done
 
 echo "--- Patching source files and creating commit"
 git commit -m "Update from Qt Creator (commit $commit)"
-git apply -- "$script_dir/patches/add-patches-for-upstream.patch"
+git apply --3way -- "$script_dir/patches/add-patches-for-upstream.patch"
 git add -- "${files_to_update[@]}"
 git commit --amend --no-edit --allow-empty
+
+echo ""
+echo "--- Post-sync manual steps required:"
+echo "  1. Build: mkdir -p build && cd build && cmake .. -DBUILD_TESTS=ON -DBUILD_EXAMPLE=ON && cmake --build ."
+echo "  2. If build fails with QString/QByteArray conversion errors, fix them in fakevimhandler.cpp"
+echo "     and regenerate the patch: git diff HEAD~1 -- fakevim/*.{h,cpp} > $script_dir/patches/add-patches-for-upstream.patch"
+echo "     then: git add fakevim/ utils/patches/ && git commit --amend --no-edit"
+echo "  3. Run tests: cd build && ctest --output-on-failure"
+echo "     Fix any test expectation changes in tests/fakevim_test.cpp (backspace behavior is a known area)"
+echo "  4. If upstream changed Callback or ExCommand API, update python/fakevimproxy.cpp (.connect -> .set)"
+echo "  5. Check example/editor.cpp for any API changes (settings accessor, signal signatures)"

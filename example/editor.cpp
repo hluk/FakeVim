@@ -410,7 +410,7 @@ void Proxy::indentRegion(int beginBlock, int endBlock, QChar typedChar)
     }
     Q_ASSERT(doc);
 
-    const int indentSize = static_cast<int>(fakeVimSettings()->shiftWidth.value());
+    const int indentSize = static_cast<int>(settings().shiftWidth());
 
     QTextBlock startBlock = doc->findBlockByNumber(beginBlock);
 

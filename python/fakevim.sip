@@ -167,4 +167,3 @@ public:
     void tabPrevious();
     void tabNext();
 };
-

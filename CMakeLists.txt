@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.16)
 project(fakevim VERSION 0.0.1)
 
 # Library name
@@ -29,10 +29,12 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 qt6_wrap_cpp(${bin}_mocced "fakevim/fakevimhandler.h")
 target_sources(${bin} PRIVATE ${${bin}_mocced})
 
-target_compile_definitions(${bin} PRIVATE
-    QT_NO_CAST_TO_ASCII
-    QT_RESTRICTED_CAST_FROM_ASCII
-    UTILS_STATIC_LIBRARY
+target_compile_definitions(${bin}
+    PUBLIC FAKEVIM_STANDALONE
+    PRIVATE
+        QT_NO_CAST_TO_ASCII
+        QT_RESTRICTED_CAST_FROM_ASCII
+        UTILS_STATIC_LIBRARY
 )
 
 option(BUILD_TESTS "Build tests")
